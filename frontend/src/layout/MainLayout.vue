@@ -8,7 +8,7 @@
       <div class="side-scroll">
         <template v-for="(g, gi) in groups" :key="gi">
           <div v-show="!collapsed" class="group-title">{{ g.title }}</div>
-          <el-menu :default-active="activeMenu" :collapse="collapsed" class="side-menu">
+          <el-menu :default-active="activeMenu" :collapse="collapsed" router class="side-menu">
             <el-menu-item
               v-for="m in g.items"
               v-show="!m.admin || auth.isAdmin"
@@ -168,6 +168,7 @@ const crumbs = computed(() => {
     case 'workbench': return [{ label: '我的工作台' }]
     case 'dashboard': return [{ label: '总览' }]
     case 'projects':
+      if (!route.params.id) return [{ label: '项目管理' }]
       return projName.value ? [{ label: '项目管理', to: '/projects' }, { label: projName.value }] : [{ label: '项目管理', to: '/projects' }, { label: '项目详情' }]
     case 'applications':
       return appName.value ? [{ label: '应用管理', to: '/applications' }, { label: appName.value }] : [{ label: '应用管理' }]

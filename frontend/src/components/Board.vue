@@ -28,7 +28,7 @@
             class="board-card"
             draggable="true"
             :data-testid="`board-card-${card.id}`"
-            @dragstart="dragging = card"
+            @dragstart="onDragStart($event, card)"
             @dragend="dragging = null"
           >
             <div style="display: flex; justify-content: space-between; gap: 6px">
@@ -66,14 +66,27 @@ async function load() {
   columns.value = resp.data.columns
 }
 
-async function onDrop(_evt, col) {
+function onDragStart(evt, card) {
+  dragging.value = card
+  if (evt.dataTransfer) {
+    evt.dataTransfer.effectAllowed = 'move'
+    evt.dataTransfer.setData('text/plain', String(card.id))
+  }
+}
+
+async function onDrop(evt, col) {
   dragOver.value = null
-  const card = dragging.value
+  let card = dragging.value
+  if (!card && evt?.dataTransfer) {
+    const id = Number(evt.dataTransfer.getData('text/plain'))
+    card = columns.value.flatMap((c) => c.items).find((i) => i.id === id) || null
+  }
   if (!card || !col) return
   const fromCol = columns.value.find((c) => c.items.some((i) => i.id === card.id))
   if (!fromCol || fromCol.code === col.code) return
   await transitionItem(card.id, col.code)
   ElMessage.success(`${card.itemNo} → ${col.name}`)
+  dragging.value = null
   await load()
 }
 

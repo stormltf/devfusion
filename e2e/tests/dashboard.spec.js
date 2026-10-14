@@ -21,6 +21,8 @@ test.describe('总览与制品库', () => {
 
   test('制品库列表展示构建产物', async ({ page }) => {
     await page.goto('/artifacts')
+    // 多轮 e2e 会产生大量制品导致种子制品不在第一页，按应用过滤后再断言
+    await pickOption(page, page.locator('.el-select').first(), 'gateway-service')
     await expect(page.getByTestId('artifact-table')).toContainText('GATEWAY')
     await expect(page.getByTestId('artifact-table')).toContainText('registry.devfusion.local')
   })

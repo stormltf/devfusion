@@ -1,6 +1,20 @@
 import { expect, test } from '@playwright/test'
 import { loginAs, expectToast, uniqueName, api, pickOption } from './helpers'
 
+// Playwright dragTo 对 HTML5 原生拖拽（dataTransfer）不可靠，按官方推荐手动派发事件
+async function html5Drag(page, cardSelector, targetSelector) {
+  await page.evaluate(async ({ cardSelector, targetSelector }) => {
+    const card = document.querySelector(cardSelector)
+    const target = document.querySelector(targetSelector)
+    const dt = new DataTransfer()
+    card.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt }))
+    target.dispatchEvent(new DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer: dt }))
+    target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }))
+    target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }))
+    card.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer: dt }))
+  }, { cardSelector, targetSelector })
+}
+
 test.describe.serial('看板', () => {
   let cardId
 
@@ -37,7 +51,7 @@ test.describe.serial('看板', () => {
 
     // Playwright HTML5 拖拽：dragstart → drop
     const target = page.getByTestId('board-col-IN_PROGRESS')
-    await card.dragTo(target)
+    await html5Drag(page, `[data-testid="board-card-${cardId}"]`, '[data-testid="board-col-IN_PROGRESS"]')
     await expectToast(page, '→ 进行中')
 
     // 卡片出现在新列
@@ -51,8 +65,9 @@ test.describe.serial('看板', () => {
   test('拖拽到 DONE 列完成流转', async ({ page }) => {
     await loginAs(page)
     await page.goto('/projects/1/board')
-    const card = page.getByTestId(`board-card-${cardId}`)
-    await card.dragTo(page.getByTestId('board-col-DONE'))
+    // 卡片此时在 IN_PROGRESS 列，等列和卡片都渲染出来再派发拖拽事件
+    await expect(page.getByTestId('board-col-IN_PROGRESS').getByTestId(`board-card-${cardId}`)).toBeVisible()
+    await html5Drag(page, `[data-testid="board-card-${cardId}"]`, '[data-testid="board-col-DONE"]')
     await expectToast(page, '→ 已完成')
     const detail = await api(page, 'GET', `/api/items/${cardId}`)
     expect((await detail.json()).data.statusCode).toBe('DONE')
