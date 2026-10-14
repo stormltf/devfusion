@@ -6,6 +6,7 @@ import com.devfusion.common.ApiException;
 import com.devfusion.common.CurrentUser;
 import com.devfusion.common.PageResult;
 import com.devfusion.common.Result;
+import com.devfusion.common.UserNameResolver;
 import com.devfusion.project.Project;
 import com.devfusion.project.mapper.ProjectMapper;
 import com.devfusion.user.User;
@@ -37,13 +38,16 @@ public class TestCaseController {
     private final ProjectMapper projectMapper;
     private final UserMapper userMapper;
     private final StringRedisTemplate redis;
+    private final UserNameResolver userNameResolver;
 
     public TestCaseController(TestCaseMapper mapper, ProjectMapper projectMapper,
-                              UserMapper userMapper, StringRedisTemplate redis) {
+                              UserMapper userMapper, StringRedisTemplate redis,
+                              UserNameResolver userNameResolver) {
         this.mapper = mapper;
         this.projectMapper = projectMapper;
         this.userMapper = userMapper;
         this.redis = redis;
+        this.userNameResolver = userNameResolver;
     }
 
     @Data
@@ -87,9 +91,7 @@ public class TestCaseController {
         List<TestCase> records = p.getRecords();
         List<Long> executorIds = records.stream().map(TestCase::getLatestExecutorId)
                 .filter(java.util.Objects::nonNull).distinct().toList();
-        Map<Long, String> nicknames = executorIds.isEmpty() ? Map.of()
-                : userMapper.selectBatchIds(executorIds).stream()
-                        .collect(Collectors.toMap(User::getId, User::getNickname));
+        Map<Long, String> nicknames = userNameResolver.names(executorIds);
         List<Map<String, Object>> rows = records.stream().map(tc -> {
             Map<String, Object> m = new HashMap<>();
             m.put("id", tc.getId());
@@ -179,8 +181,7 @@ public class TestCaseController {
         vo.put("id", tc.getId());
         vo.put("latestResult", tc.getLatestResult());
         vo.put("latestExecutorId", tc.getLatestExecutorId());
-        User u = tc.getLatestExecutorId() != null ? userMapper.selectById(tc.getLatestExecutorId()) : null;
-        vo.put("latestExecutorName", u != null ? u.getNickname() : null);
+        vo.put("latestExecutorName", userNameResolver.name(tc.getLatestExecutorId()));
         vo.put("latestExecutedAt", tc.getLatestExecutedAt());
         vo.put("bugItemId", tc.getBugItemId());
         return Result.ok(vo);

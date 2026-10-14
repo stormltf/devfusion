@@ -24,6 +24,7 @@ test.describe.serial('迭代管理', () => {
     await page.goto('/projects/1/iteration')
     iterId = await getIdFromRow(page, iterName)
     await page.getByTestId(`iteration-start-${iterId}`).click()
+    await page.getByRole('button', { name: '确定' }).click()
     await expectToast(page, '迭代已进行中')
     await expect(page.locator('tr', { hasText: iterName })).toContainText('进行中')
   })
@@ -37,6 +38,7 @@ test.describe.serial('迭代管理', () => {
 
     await page.goto('/projects/1/iteration')
     await page.getByTestId(`iteration-complete-${iterId}`).click()
+    await page.getByRole('button', { name: '确定' }).click()
     await expectToast(page, '不能完成迭代')
     await expect(page.locator('tr', { hasText: iterName })).toContainText('进行中')
   })
@@ -53,6 +55,7 @@ test.describe.serial('迭代管理', () => {
     }
     await page.goto('/projects/1/iteration')
     await page.getByTestId(`iteration-complete-${iterId}`).click()
+    await page.getByRole('button', { name: '确定' }).click()
     // 以持久化状态为准（toast 时序不稳定）
     await expect(page.locator('tr', { hasText: iterName })).toContainText('已完成', { timeout: 15_000 })
     await expect(page.locator('tr', { hasText: iterName })).toContainText('100%')

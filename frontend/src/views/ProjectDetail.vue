@@ -8,20 +8,38 @@
         <span class="proj-sub">{{ project.key }} · {{ project.memberCount || 0 }} 名成员</span>
       </div>
     </div>
-    <el-tabs v-model="tab" class="proj-tabs">
-      <el-tab-pane label="需求" name="story"><WorkItemList v-if="tab === 'story'" :project-id="pid" type="STORY" /></el-tab-pane>
-      <el-tab-pane label="任务" name="task"><WorkItemList v-if="tab === 'task'" :project-id="pid" type="TASK" /></el-tab-pane>
-      <el-tab-pane label="缺陷" name="bug"><WorkItemList v-if="tab === 'bug'" :project-id="pid" type="BUG" /></el-tab-pane>
-      <el-tab-pane label="看板" name="board"><Board v-if="tab === 'board'" :project-id="pid" /></el-tab-pane>
-      <el-tab-pane label="Backlog" name="backlog"><BacklogPanel v-if="tab === 'backlog'" :project-id="pid" /></el-tab-pane>
-      <el-tab-pane label="迭代" name="iteration"><IterationPanel v-if="tab === 'iteration'" :project-id="pid" /></el-tab-pane>
-      <el-tab-pane label="测试用例" name="testcase"><TestCasePanel v-if="tab === 'testcase'" :project-id="pid" /></el-tab-pane>
-      <el-tab-pane label="测试计划" name="testplan"><TestPlanPanel v-if="tab === 'testplan'" :project-id="pid" /></el-tab-pane>
-      <el-tab-pane label="发布" name="release"><ReleasePanel v-if="tab === 'release'" :project-id="pid" /></el-tab-pane>
-      <el-tab-pane label="缺陷报表" name="report"><BugReportPanel v-if="tab === 'report'" :project-id="pid" /></el-tab-pane>
-      <el-tab-pane label="成员" name="member"><MemberPanel v-if="tab === 'member'" :project-id="pid" /></el-tab-pane>
-      <el-tab-pane label="项目设置" name="settings"><WorkflowSettings v-if="tab === 'settings'" :project-id="pid" /></el-tab-pane>
-    </el-tabs>
+
+    <div class="proj-body">
+      <aside class="proj-nav">
+        <template v-for="g in navGroups" :key="g.title">
+          <div class="pn-group">{{ g.title }}</div>
+          <button
+            v-for="item in g.items"
+            :key="item.name"
+            class="pn-item"
+            :class="{ active: tab === item.name }"
+            :data-testid="`proj-nav-${item.name}`"
+            @click="tab = item.name"
+          >
+            {{ item.label }}
+          </button>
+        </template>
+      </aside>
+      <div class="proj-content">
+        <WorkItemList v-if="tab === 'story'" :project-id="pid" type="STORY" />
+        <WorkItemList v-else-if="tab === 'task'" :project-id="pid" type="TASK" />
+        <WorkItemList v-else-if="tab === 'bug'" :project-id="pid" type="BUG" />
+        <Board v-else-if="tab === 'board'" :project-id="pid" />
+        <BacklogPanel v-else-if="tab === 'backlog'" :project-id="pid" />
+        <IterationPanel v-else-if="tab === 'iteration'" :project-id="pid" />
+        <ReleasePanel v-else-if="tab === 'release'" :project-id="pid" />
+        <TestCasePanel v-else-if="tab === 'testcase'" :project-id="pid" />
+        <TestPlanPanel v-else-if="tab === 'testplan'" :project-id="pid" />
+        <BugReportPanel v-else-if="tab === 'report'" :project-id="pid" />
+        <MemberPanel v-else-if="tab === 'member'" :project-id="pid" />
+        <WorkflowSettings v-else-if="tab === 'settings'" :project-id="pid" />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -41,6 +59,31 @@ import BugReportPanel from '../components/BugReportPanel.vue'
 import MemberPanel from '../components/MemberPanel.vue'
 import WorkflowSettings from '../components/WorkflowSettings.vue'
 
+const navGroups = [
+  { title: '工作项', items: [
+    { name: 'story', label: '需求' },
+    { name: 'task', label: '任务' },
+    { name: 'bug', label: '缺陷' },
+  ]},
+  { title: '规划', items: [
+    { name: 'board', label: '看板' },
+    { name: 'backlog', label: '待规划' },
+    { name: 'iteration', label: '迭代' },
+    { name: 'release', label: '发布' },
+  ]},
+  { title: '测试', items: [
+    { name: 'testcase', label: '测试用例' },
+    { name: 'testplan', label: '测试计划' },
+  ]},
+  { title: '报表', items: [
+    { name: 'report', label: '缺陷报表' },
+  ]},
+  { title: '设置', items: [
+    { name: 'member', label: '成员' },
+    { name: 'settings', label: '项目设置' },
+  ]},
+]
+
 const route = useRoute()
 const router = useRouter()
 const pid = computed(() => route.params.id)
@@ -48,7 +91,7 @@ const TABS = ['story', 'task', 'bug', 'board', 'backlog', 'iteration', 'testcase
 const tab = ref(TABS.includes(String(route.name)) ? route.name : 'story')
 const project = ref({})
 
-// tab ⇄ 子路由双向同步：直接访问子路由 URL 时激活对应 tab，切 tab 时更新 URL
+// tab ⇄ 子路由双向同步：直接访问子路由 URL 时激活对应导航，切导航时更新 URL
 watch(() => route.name, (n) => {
   if (TABS.includes(String(n)) && n !== tab.value) tab.value = n
 })
@@ -63,15 +106,25 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.proj-head { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; padding: 12px 16px; }
+.proj-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding: 12px 16px; }
 .proj-head-meta { display: flex; flex-direction: column; }
 .proj-name { font-size: 16px; font-weight: 600; color: var(--df-text); }
 .proj-sub { color: var(--df-text-3); font-size: var(--df-font-sm); margin-top: 2px; }
 
-.proj-tabs { background: transparent; }
-.proj-tabs :deep(.el-tabs__header) { margin: 0 0 14px; }
-.proj-tabs :deep(.el-tabs__item) { font-size: var(--df-font); color: var(--df-text-2); }
-.proj-tabs :deep(.el-tabs__item.is-active) { color: var(--df-primary); font-weight: 600; }
-.proj-tabs :deep(.el-tabs__active-bar) { background: var(--df-primary); }
-.proj-tabs :deep(.el-tabs__content) { overflow: visible; }
+.proj-body { display: flex; gap: 16px; align-items: flex-start; }
+.proj-nav {
+  width: 168px; flex-shrink: 0; background: var(--df-surface);
+  border: 1px solid var(--df-border-light); border-radius: var(--df-radius);
+  padding: 10px 8px;
+}
+.pn-group { font-size: 11px; color: var(--df-text-3); padding: 10px 10px 4px; letter-spacing: .5px; }
+.pn-group:first-child { padding-top: 4px; }
+.pn-item {
+  display: block; width: 100%; text-align: left; border: none; background: transparent;
+  height: 36px; line-height: 36px; padding: 0 12px; border-radius: var(--df-radius-sm);
+  color: var(--df-text-2); font-size: var(--df-font); cursor: pointer;
+}
+.pn-item:hover { background: var(--df-sidebar-hover); color: var(--df-text); }
+.pn-item.active { background: var(--df-sidebar-active); color: var(--df-primary); font-weight: 600; }
+.proj-content { flex: 1; min-width: 0; }
 </style>

@@ -57,25 +57,39 @@
       <el-button size="small" type="danger" @click="batchDelete" data-testid="batch-delete">批量删除</el-button>
     </div>
 
+    <el-alert
+      v-if="loadError"
+      type="error"
+      show-icon
+      :closable="false"
+      title="加载失败"
+      description="数据加载出错，请重试"
+      style="margin-bottom: 12px"
+    >
+      <template #default>
+        <el-button size="small" type="primary" @click="load" data-testid="retry-load">重试</el-button>
+      </template>
+    </el-alert>
+
     <el-table :data="rows" v-loading="loading" :data-testid="`item-table-${type.toLowerCase()}`" @selection-change="(s) => (selection = s)">
       <el-table-column type="selection" width="40" />
       <el-table-column prop="itemNo" label="编号" width="140">
         <template #default="{ row }"><span style="color: var(--df-primary)">{{ row.itemNo }}</span></template>
       </el-table-column>
-      <el-table-column prop="title" label="标题" min-width="240" />
+      <el-table-column prop="title" label="标题" min-width="240" show-overflow-tooltip />
       <el-table-column label="状态" width="100">
         <template #default="{ row }">
           <el-tag size="small" :type="statusTagType(row.statusCode)">{{ row.statusName || row.statusCode }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column label="优先级" width="90">
-        <template #default="{ row }">
-          <el-tag size="small" :type="priorityType(row.priority)" effect="plain">{{ priorityLabel(row.priority) }}</el-tag>
-        </template>
+        <template #default="{ row }"><PriorityTag :value="row.priority" /></template>
       </el-table-column>
-      <el-table-column prop="assigneeName" label="负责人" width="100" />
-      <el-table-column prop="iterationName" label="迭代" width="150" />
-      <el-table-column prop="updatedAt" label="更新时间" width="170">
+      <el-table-column label="负责人" width="120">
+        <template #default="{ row }"><UserCell :name="row.assigneeName" /></template>
+      </el-table-column>
+      <el-table-column prop="iterationName" label="迭代" width="150" show-overflow-tooltip />
+      <el-table-column prop="updatedAt" label="更新时间" width="160">
         <template #default="{ row }">{{ fmtTime(row.updatedAt) }}</template>
       </el-table-column>
       <el-table-column label="操作" width="80" fixed="right">
@@ -94,10 +108,10 @@
     />
 
     <!-- 新建 -->
-    <el-dialog v-model="createDialog" :title="`新建${typeName}`" width="520px">
-      <el-form :model="form" label-width="80px">
-        <el-form-item label="标题" required>
-          <el-input v-model="form.title" :data-testid="`item-title-${type.toLowerCase()}`" />
+    <el-dialog v-model="createDialog" :title="`新建${typeName}`" width="520px" @closed="resetForm">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="80px">
+        <el-form-item label="标题" prop="title">
+          <el-input v-model="form.title" :data-testid="`item-title-${type.toLowerCase()}`" @keyup.enter="save" />
         </el-form-item>
         <el-form-item label="描述"><el-input v-model="form.description" type="textarea" :rows="3" /></el-form-item>
         <el-form-item label="优先级">
@@ -118,7 +132,7 @@
       </el-form>
       <template #footer>
         <el-button @click="createDialog = false">取消</el-button>
-        <el-button type="primary" @click="save" :data-testid="`item-save-${type.toLowerCase()}`">创建</el-button>
+        <el-button type="primary" :loading="saving" @click="save" :data-testid="`item-save-${type.toLowerCase()}`">创建</el-button>
       </template>
     </el-dialog>
 
@@ -140,27 +154,45 @@ import {
   listViews,
 } from '../api'
 import WorkItemDrawer from './WorkItemDrawer.vue'
+import PriorityTag from './common/PriorityTag.vue'
+import UserCell from './common/UserCell.vue'
+import { fmtTime } from '../utils/enums'
+import { useRoute, useRouter } from 'vue-router'
 
 const props = defineProps({ projectId: String, type: String })
+const route = useRoute()
+const router = useRouter()
 
 const rows = ref([])
 const total = ref(0)
-const page = ref(1)
+const page = ref(Number(route.query.page) || 1)
 const size = 10
 const loading = ref(false)
+const loadError = ref(false)
 const statuses = ref([])
 const users = ref([])
 const iterations = ref([])
 const views = ref([])
 const savedViewId = ref(null)
-const sortField = ref('updatedAt')
-const sortDir = ref('desc')
+const sortField = ref(route.query.sort || 'updatedAt')
+const sortDir = ref(route.query.direction || 'desc')
 const selection = ref([])
-const filters = reactive({ keyword: '', statusCode: '', priority: '', assigneeId: null, iterationId: null })
+const filters = reactive({
+  keyword: route.query.keyword || '',
+  statusCode: route.query.statusCode || '',
+  priority: route.query.priority || '',
+  assigneeId: route.query.assigneeId ? Number(route.query.assigneeId) : null,
+  iterationId: route.query.iterationId ? Number(route.query.iterationId) : null,
+})
 const batchForm = reactive({ statusCode: '', assigneeId: null, iterationId: null })
 const createDialog = ref(false)
 const detailId = ref(null)
+const saving = ref(false)
+const formRef = ref(null)
 const form = reactive({ title: '', description: '', priority: 'MEDIUM', assigneeId: null, iterationId: null })
+const rules = {
+  title: [{ required: true, message: '请填写标题', trigger: 'blur' }],
+}
 
 const priorities = [
   { value: 'URGENT', label: '紧急' },
@@ -171,16 +203,28 @@ const priorities = [
 
 const typeName = computed(() => ({ STORY: '需求', TASK: '任务', BUG: '缺陷' }[props.type]))
 
-const priorityLabel = (p) => priorities.find((x) => x.value === p)?.label || p
-const priorityType = (p) => ({ URGENT: 'danger', HIGH: 'warning', MEDIUM: 'primary', LOW: 'info' }[p] || 'info')
 const statusTagType = (code) => {
   const s = statuses.value.find((x) => x.code === code)
   return { TODO: 'info', IN_PROGRESS: 'warning', DONE: 'success' }[s?.category] || 'info'
 }
-const fmtTime = (t) => (t ? String(t).replace('T', ' ').slice(0, 16) : '-')
+
+function syncQuery() {
+  router.replace({ query: {
+    ...route.query,
+    keyword: filters.keyword || undefined,
+    statusCode: filters.statusCode || undefined,
+    priority: filters.priority || undefined,
+    assigneeId: filters.assigneeId || undefined,
+    iterationId: filters.iterationId || undefined,
+    sort: sortField.value,
+    direction: sortDir.value,
+    page: page.value > 1 ? page.value : undefined,
+  } }).catch(() => {})
+}
 
 async function load() {
   loading.value = true
+  loadError.value = false
   try {
     const resp = await listItems(props.projectId, {
       type: props.type,
@@ -196,6 +240,9 @@ async function load() {
     })
     rows.value = resp.data.records
     total.value = resp.data.total
+    syncQuery()
+  } catch {
+    loadError.value = true
   } finally {
     loading.value = false
   }
@@ -238,16 +285,30 @@ async function batchDelete() {
 }
 
 async function save() {
-  if (!form.title) {
-    ElMessage.warning('请填写标题')
+  if (!formRef.value) return
+  try {
+    await formRef.value.validate()
+  } catch {
     return
   }
-  await createItem(props.projectId, { ...form, type: props.type })
-  ElMessage.success('创建成功')
-  createDialog.value = false
+  saving.value = true
+  try {
+    await createItem(props.projectId, { ...form, type: props.type })
+    ElMessage.success('创建成功')
+    createDialog.value = false
+    await load()
+  } finally {
+    saving.value = false
+  }
+}
+
+function resetForm() {
   form.title = ''
   form.description = ''
-  await load()
+  form.assigneeId = null
+  form.iterationId = null
+  form.priority = 'MEDIUM'
+  formRef.value?.clearValidate()
 }
 
 const openDetail = (row) => {

@@ -2,6 +2,7 @@ package com.devfusion.workitem;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.devfusion.common.ApiException;
+import com.devfusion.common.UserNameResolver;
 import com.devfusion.iteration.Iteration;
 import com.devfusion.iteration.mapper.IterationMapper;
 import com.devfusion.project.Project;
@@ -35,11 +36,13 @@ public class WorkItemService {
     private final UserMapper userMapper;
     private final IterationMapper iterationMapper;
     private final StringRedisTemplate redis;
+    private final UserNameResolver userNameResolver;
 
     public WorkItemService(WorkItemMapper itemMapper, WorkItemStatusMapper statusMapper,
                            WorkItemActivityMapper activityMapper, ProjectMapper projectMapper,
                            ProjectMemberMapper memberMapper, UserMapper userMapper,
-                           IterationMapper iterationMapper, StringRedisTemplate redis) {
+                           IterationMapper iterationMapper, StringRedisTemplate redis,
+                           UserNameResolver userNameResolver) {
         this.itemMapper = itemMapper;
         this.statusMapper = statusMapper;
         this.activityMapper = activityMapper;
@@ -48,6 +51,7 @@ public class WorkItemService {
         this.userMapper = userMapper;
         this.iterationMapper = iterationMapper;
         this.redis = redis;
+        this.userNameResolver = userNameResolver;
     }
 
     @Transactional
@@ -173,10 +177,12 @@ public class WorkItemService {
 
     /** 列表 VO 填充：负责人昵称、迭代名、状态名 */
     public void fill(List<Map<String, Object>> rows, List<WorkItem> items) {
-        List<Long> userIds = items.stream().map(WorkItem::getAssigneeId).filter(java.util.Objects::nonNull).distinct().toList();
-        Map<Long, String> nicknames = userIds.isEmpty() ? Map.of()
-                : userMapper.selectBatchIds(userIds).stream()
-                        .collect(java.util.stream.Collectors.toMap(User::getId, User::getNickname));
+        List<Long> userIds = new java.util.ArrayList<>();
+        items.forEach(it -> {
+            if (it.getAssigneeId() != null) userIds.add(it.getAssigneeId());
+            if (it.getReporterId() != null) userIds.add(it.getReporterId());
+        });
+        Map<Long, String> nicknames = userNameResolver.names(userIds);
         List<Long> iterIds = items.stream().map(WorkItem::getIterationId).filter(java.util.Objects::nonNull).distinct().toList();
         Map<Long, String> iterNames = iterIds.isEmpty() ? Map.of()
                 : iterationMapper.selectBatchIds(iterIds).stream()
@@ -200,6 +206,7 @@ public class WorkItemService {
             row.put("assigneeId", it.getAssigneeId());
             row.put("assigneeName", it.getAssigneeId() == null ? null : nicknames.get(it.getAssigneeId()));
             row.put("reporterId", it.getReporterId());
+            row.put("reporterName", it.getReporterId() == null ? null : nicknames.get(it.getReporterId()));
             row.put("iterationId", it.getIterationId());
             row.put("iterationName", it.getIterationId() == null ? null : iterNames.get(it.getIterationId()));
             row.put("parentId", it.getParentId());

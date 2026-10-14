@@ -11,7 +11,7 @@ test.describe('DevOps 扩展（OPS）', () => {
 
     await page.goto('/metrics')
     await expect(page.getByTestId('metrics-trend')).toBeVisible()
-    await expect(page.locator('.stat-value').first()).toBeVisible()
+    await expect(page.locator('.sc-value').first()).toBeVisible()
   })
 
   test('顶栏通知铃铛可打开并全部已读', async ({ page }) => {
@@ -40,6 +40,7 @@ test.describe('DevOps 扩展（OPS）', () => {
     const promoteBtn = page.locator('[data-testid=artifact-promote]').first()
     if (await promoteBtn.count()) {
       await promoteBtn.click()
+      await page.locator('.el-message-box__btns .el-button--primary').click()
       await expect(page.locator('.el-message').filter({ hasText: '已晋级' }).first()).toBeVisible({ timeout: 10_000 })
     }
   })
@@ -60,7 +61,9 @@ test.describe('DevOps 扩展（OPS）', () => {
     await page.goto('/deployments')
     const approveBtn = page.locator(`[data-testid=deploy-approve-${dep.id}]`)
     await expect(approveBtn).toBeVisible({ timeout: 10_000 })
-    await approveBtn.click({ force: true })
+    await expect(page.locator('.el-loading-mask')).toHaveCount(0)
+    await approveBtn.click()
+    await page.locator('.el-message-box__btns .el-button--primary').click()
     await expect(approveBtn).toBeHidden({ timeout: 10_000 })
   })
 })

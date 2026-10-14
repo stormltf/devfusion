@@ -38,7 +38,15 @@
 ## 界面对照
 
 ONES / ezOne 截图与本地页面并排对比入口：[docs/screenshots/compare.html](./docs/screenshots/compare.html)。
-UI 设计令牌与改版规范：[docs/ui-guidelines.md](./docs/ui-guidelines.md)。
+UI 设计令牌与改版规范：[docs/ui-guidelines.md](./docs/ui-guidelines.md)，组件审查记录见 [docs/ui-review.md](./docs/ui-review.md)。
+
+### UI 改版要点（生产化）
+
+- **导航**：左侧分组导航（项目管理 / 应用与流水线 / 平台），项目详情内二级 Tab 导航（概览 / 列表 / 看板 / Backlog / 迭代 / 测试用例 / 测试计划 / 发布 / 成员 / 工作流设置 / 缺陷报表）。
+- **公共组件**：`src/components/common/`（PageHeader、StatCard、EmptyState、UserCell、StatusTag、PriorityTag、ChartCard）+ 设计令牌 `styles/tokens.css`；`utils/enums.js` 统一状态/优先级中文映射与语义色。
+- **口径标注**：统计面板按 scope 对齐分母（缺陷报表分布与"未解决缺陷"同口径），口径说明写入 design.md。
+- **危险操作确认**：删除、移出迭代、批量删除、完成/取消迭代、发布/归档、移除成员等均走 `ElMessageBox.confirm`。
+- **筛选保留**：列表筛选/排序/分页/已保存视图写入 `route.query`，刷新后恢复。
 
 ## 环境要求
 
@@ -121,7 +129,7 @@ curl -X POST "http://localhost:8080/api/open/pipelines/{pipelineId}/trigger" -H 
 
 ```bash
 cd e2e && npm install && npx playwright install chromium
-npx playwright test    # 82 个用例（原有 70 + 项目管理新功能 7 + DevOps 新功能 5），两轮连跑全绿
+npx playwright test    # 85 个用例（原有 70 + 项目管理 7 + DevOps 5 + 筛选保留等新增 3），连续两轮全绿
 ```
 
 用例可重复执行（连续多轮全绿），测试产生的脏数据集中在标题含 `E2E-` 的记录。

@@ -12,4 +12,16 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    chunkSizeWarningLimit: 1300,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vue: ['vue', 'vue-router', 'pinia'],
+          'element-plus': ['element-plus', '@element-plus/icons-vue'],
+          echarts: ['echarts'],
+        },
+      },
+    },
+  },
 })

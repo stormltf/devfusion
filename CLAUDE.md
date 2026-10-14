@@ -8,7 +8,7 @@ DevFusion：参照 ONES（项目管理）+ 简单云 ezOne（DevOps）调研后�
 
 - `backend/` — Spring Boot 3.5 + MyBatis-Plus 3.5 + MySQL + Redis，Java 17+ 编译（本机 JDK 25）
 - `frontend/` — Vue 3 + Vite + Element Plus + Pinia，端口 5173，`/api` 代理到 8080
-- `e2e/` — Playwright，82 个用例，可重复执行
+- `e2e/` — Playwright，85 个用例，可重复执行
 - `docs/` — ONES/简单云调研报告、系统设计、[gap-analysis.md](./docs/gap-analysis.md)（逐条落地状态）、[ui-guidelines.md](./docs/ui-guidelines.md)（新增页面必须遵循）
 
 ## 常用命令
@@ -40,6 +40,7 @@ redis-cli -n 3 flushdb
 - **部署审批**：部署单审批前状态为 `PENDING_APPROVAL`，approve/reject 接口在 DeploymentController；reject 后单不进 DeployExecutor。
 - **模拟执行**：构建命令不真实执行，日志由 `JobLogSimulator` 按插件类型生成。失败约定：SHELL 脚本含 `exit 1`，或 config 含 `"fail": true`（UNIT_TEST 支持 `failJobs`）。**变量 `secret=true` 的值在日志中打码为 `********`**，改 simulator 时不得回退为明文。e2e 的成败场景依赖这套约定，改 simulator 前先看 e2e 断言（如 `Failures: 3`、`BUILD SUCCESS`）。
 - **禁止 `Map.of()` 返回的不可变 Map 对可能为 null 的 key 调用 `get(null)`**——直接抛 NPE（未指派工作项详情曾因此 500）。
+- **用户名统一走 `common/UserNameResolver`**：返回带 `xxxId` 的接口（assigneeId/ownerId/creatorId/executorId/triggerUserId/approverId 等）必须批量 `names(ids)` 附带对应 `xxxName`，查不到统一返回「已删除用户」，**禁止前端再拼「用户#id」兜底**，也禁止逐条查库（N+1）。
 - 部署执行器（`deploy/DeployExecutor`）同理：四步模拟 + Redis 取消标志，回滚 = 对旧制品发 `deploy_type=ROLLBACK` 的新部署单。
 
 ### 前端
@@ -48,6 +49,9 @@ redis-cli -n 3 flushdb
 - 项目详情的 tab 与子路由双向同步（`ProjectDetail.vue`），新增 tab 要同时改 `TABS` 数组和 `router.js` 子路由。
 - el-select 的下拉 popper 持久驻留 DOM，跨下拉的文本选择会 strict 冲突——e2e 用 `pickOption`（按 `aria-controls` 定位展开的下拉）。
 - **新页面/新组件只引用 `frontend/src/styles/tokens.css` 的设计令牌**，禁止散落硬编码色值；规范全文见 [docs/ui-guidelines.md](./docs/ui-guidelines.md)。
+- **状态标签必须用 `<StatusTag :code="..." domain="...">` 并显式传 domain**（workItem/iteration/plan/release/run/deploy/testResult）。**通用 `statusLabel()` 会跨域撞 code**——例如 `IN_PROGRESS` 在 RUN_STATUS（运行中）与 ITERATION_STATUS（进行中）都存在，通用函数命中靠表顺序，会误标；不要在组件里再写本地状态映射。
+- **危险操作（删除/移出迭代/批量删除/完成或取消迭代/发布或归档/移除成员）一律 `ElMessageBox.confirm`**，确认后才执行。
+- **列表筛选/排序/分页/已保存视图写入 `route.query`**（`router.replace` 合并 query），刷新后从 query 初始化恢复。
 
 ### e2e 约定（改测试前先读 `e2e/tests/helpers.js`）
 
@@ -55,6 +59,7 @@ redis-cli -n 3 flushdb
 - `workers: 1` 串行执行，同 spec 内 test 有数据依赖（describe.serial）。
 - 测试创建的业务对象标题/标识必须含唯一后缀（`uniqueName` / `Date.now`），否则跨轮残留数据导致 strict 冲突或唯一键冲突。
 - 断言持久化结果（列表文本 / API 轮询）优于断言 toast——toast 有 3s 生命周期，时序竞争易 flaky。
+- 触发了 `ElMessageBox` 危险确认的操作，必须再点 `page.getByRole('button', { name: '确定' }).click()` 才会真正执行；取消分支则点「取消」并断言数据不变。
 
 ## 已知环境坑
 

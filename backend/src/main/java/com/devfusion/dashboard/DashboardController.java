@@ -3,6 +3,7 @@ package com.devfusion.dashboard;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.devfusion.app.Application;
 import com.devfusion.common.Result;
+import com.devfusion.common.UserNameResolver;
 import com.devfusion.app.mapper.ApplicationMapper;
 import com.devfusion.deploy.Deployment;
 import com.devfusion.deploy.mapper.DeploymentMapper;
@@ -47,13 +48,14 @@ public class DashboardController {
     private final IterationMapper iterationMapper;
     private final WorkItemStatusMapper statusMapper;
     private final WorkItemActivityMapper activityMapper;
+    private final UserNameResolver userNameResolver;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public DashboardController(UserMapper userMapper, ProjectMapper projectMapper,
                                ApplicationMapper applicationMapper, PipelineRunMapper runMapper,
                                DeploymentMapper deploymentMapper, WorkItemMapper itemMapper,
                                IterationMapper iterationMapper, WorkItemStatusMapper statusMapper,
-                               WorkItemActivityMapper activityMapper) {
+                               WorkItemActivityMapper activityMapper, UserNameResolver userNameResolver) {
         this.userMapper = userMapper;
         this.projectMapper = projectMapper;
         this.applicationMapper = applicationMapper;
@@ -63,6 +65,7 @@ public class DashboardController {
         this.iterationMapper = iterationMapper;
         this.statusMapper = statusMapper;
         this.activityMapper = activityMapper;
+        this.userNameResolver = userNameResolver;
     }
 
     /** 全局总览 */
@@ -189,18 +192,30 @@ public class DashboardController {
             trend.add(p);
         }
 
-        // 未解决缺陷平均年龄（天）
+        // 未解决缺陷集合（分布与顶部「未解决缺陷」同口径：仅统计未关闭的 BUG）
         List<WorkItem> unresolved = bugs.stream()
                 .filter(b -> !"DONE".equals(categoryByCode.get(b.getStatusCode()))).toList();
         double avgAge = unresolved.isEmpty() ? 0.0 : unresolved.stream()
                 .mapToLong(b -> b.getCreatedAt().toLocalDate().until(today).getDays()).average().orElse(0);
 
-        Map<String, Long> byPriority = bugs.stream().collect(
+        // 口径：均为未解决（open）缺陷，与 unresolvedCount 同分母
+        Map<String, Long> byPriority = unresolved.stream().collect(
                 Collectors.groupingBy(b -> b.getPriority() == null ? "UNKNOWN" : b.getPriority(), Collectors.counting()));
 
-        Map<String, Long> byAssignee = bugs.stream()
+        Map<Long, Long> assigneeCount = unresolved.stream()
                 .filter(b -> b.getAssigneeId() != null)
-                .collect(Collectors.groupingBy(b -> String.valueOf(b.getAssigneeId()), Collectors.counting()));
+                .collect(Collectors.groupingBy(WorkItem::getAssigneeId, Collectors.counting()));
+        Map<Long, String> assigneeNames = userNameResolver.names(assigneeCount.keySet());
+        List<Map<String, Object>> byAssignee = new ArrayList<>();
+        assigneeCount.entrySet().stream()
+                .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
+                .forEach(e -> {
+                    Map<String, Object> row = new HashMap<>();
+                    row.put("assigneeId", e.getKey());
+                    row.put("assigneeName", assigneeNames.get(e.getKey()));
+                    row.put("count", e.getValue());
+                    byAssignee.add(row);
+                });
 
         // 重开：状态从 DONE 类回到非 DONE 类计一次
         List<WorkItemActivity> all = activityMapper.selectList(Wrappers.<WorkItemActivity>lambdaQuery()
@@ -215,6 +230,7 @@ public class DashboardController {
         }).count();
 
         Map<String, Object> m = new HashMap<>();
+        m.put("scope", "open");
         m.put("trend", trend);
         m.put("unresolvedCount", unresolved.size());
         m.put("avgAgeDays", Math.round(avgAge * 100.0) / 100.0);

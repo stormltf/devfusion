@@ -42,6 +42,7 @@ test.describe.serial('PM 项目管理新功能', () => {
     const rid = list.data.find((r) => r.name === name).id
     await page.goto('/projects/1/release')
     await page.getByTestId(`release-publish-${rid}`).click()
+    await page.getByRole('button', { name: '确定' }).click()
     await expect(page.locator('tr', { hasText: name })).toContainText('已发布', { timeout: 10_000 })
   })
 
@@ -77,13 +78,35 @@ test.describe.serial('PM 项目管理新功能', () => {
 
   test('缺陷报表页渲染统计卡片与图表', async ({ page }) => {
     await page.goto('/projects/1/report')
-    await expect(page.locator('.stat-row')).toBeVisible()
-    await expect(page.locator('.el-row').filter({ hasText: '未解决缺陷' })).toBeVisible()
+    await expect(page.locator('.stat-card', { hasText: '未解决缺陷' })).toBeVisible()
+    await expect(page.locator('.chart-card')).toBeVisible()
   })
 
   test('工作项列表：排序选择可见', async ({ page }) => {
     await page.goto('/projects/1/story')
     await expect(page.getByTestId('sort-field')).toBeVisible()
     await expect(page.getByTestId('view-select')).toBeVisible()
+  })
+
+  test('工作项筛选写入 query，刷新后仍生效', async ({ page }) => {
+    const title = uniqueName('FilterE2E')
+    await api(page, 'POST', '/api/projects/1/items', { data: { type: 'STORY', title } })
+    await page.goto('/projects/1/story')
+    await page.getByTestId('item-search-story').fill(title)
+    await page.getByTestId('item-search-story').blur()
+    await expect(page.locator('[data-testid="item-table-story"] tbody tr', { hasText: title })).toBeVisible()
+    await page.reload()
+    await expect(page.getByTestId('item-search-story')).toHaveValue(title)
+    await expect(page.locator('[data-testid="item-table-story"] tbody tr', { hasText: title })).toBeVisible()
+  })
+
+  test('移出迭代需确认，取消后数据不变', async ({ page }) => {
+    const title = uniqueName('UnplanCancelE2E')
+    const created = await (await api(page, 'POST', '/api/projects/1/items', { data: { type: 'STORY', title } })).json()
+    await api(page, 'POST', '/api/projects/1/backlog/plan', { data: { itemIds: [created.data.id], iterationId: 1 } })
+    await page.goto('/projects/1/backlog')
+    await page.getByTestId(`backlog-remove-${created.data.id}`).click()
+    await page.getByRole('button', { name: '取消' }).click()
+    await expect(page.getByTestId('backlog-iter-1').locator(`[data-testid="backlog-item-${created.data.id}"]`)).toBeVisible()
   })
 })

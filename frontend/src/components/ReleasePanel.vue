@@ -5,8 +5,15 @@
       <el-button type="primary" @click="openCreate" data-testid="release-create">新建发布</el-button>
     </div>
 
+    <el-alert
+      v-if="loadError"
+      type="error" show-icon :closable="false" title="加载失败" style="margin: 0 12px 12px"
+    >
+      <el-button size="small" type="primary" @click="load" data-testid="retry-load">重试</el-button>
+    </el-alert>
+
     <div class="page-card">
-      <el-table :data="releases" data-testid="release-table">
+      <el-table v-loading="loading" :data="releases" data-testid="release-table">
         <el-table-column prop="name" label="名称" min-width="180" />
         <el-table-column prop="version" label="版本" width="120" />
         <el-table-column prop="releaseDate" label="发布日期" width="130" />
@@ -38,7 +45,7 @@
       </el-form>
       <template #footer>
         <el-button @click="createDialog = false">取消</el-button>
-        <el-button type="primary" @click="save" data-testid="release-save">创建</el-button>
+        <el-button type="primary" :loading="saving" @click="save" data-testid="release-save">创建</el-button>
       </template>
     </el-dialog>
 
@@ -56,19 +63,31 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { changeReleaseStatus, createRelease, deleteRelease, getRelease, listReleases } from '../api'
+import { statusLabel, statusType } from '../utils/enums'
 
 const props = defineProps({ projectId: String })
 const releases = ref([])
+const loading = ref(false)
+const loadError = ref(false)
 const createDialog = ref(false)
+const saving = ref(false)
 const form = reactive({ name: '', version: '', releaseDate: null, description: '' })
 const itemsVisible = ref(false)
 const current = ref({ items: [] })
 
-const releaseLabel = (s) => ({ PLANNED: '规划中', RELEASED: '已发布', ARCHIVED: '已归档', CANCELED: '已取消' }[s] || s)
-const releaseType = (s) => ({ PLANNED: 'info', RELEASED: 'success', ARCHIVED: 'warning', CANCELED: 'danger' }[s] || 'info')
+const releaseLabel = (s) => statusLabel(s)
+const releaseType = (s) => statusType(s)
 
 async function load() {
-  releases.value = (await listReleases(props.projectId)).data
+  loading.value = true
+  loadError.value = false
+  try {
+    releases.value = (await listReleases(props.projectId)).data
+  } catch {
+    loadError.value = true
+  } finally {
+    loading.value = false
+  }
 }
 
 function openCreate() {
@@ -81,13 +100,20 @@ async function save() {
     ElMessage.warning('请填写名称和版本')
     return
   }
-  await createRelease(props.projectId, { ...form })
-  ElMessage.success('创建成功')
-  createDialog.value = false
-  await load()
+  saving.value = true
+  try {
+    await createRelease(props.projectId, { ...form })
+    ElMessage.success('创建成功')
+    createDialog.value = false
+    await load()
+  } finally {
+    saving.value = false
+  }
 }
 
 async function changeStatus(row, status) {
+  const verb = { RELEASED: '发布', ARCHIVED: '归档' }[status]
+  await ElMessageBox.confirm(`确认${verb}发布「${row.name}（${row.version}）」？`, '提示', { type: 'warning' })
   await changeReleaseStatus(row.id, status)
   ElMessage.success('状态已更新')
   await load()

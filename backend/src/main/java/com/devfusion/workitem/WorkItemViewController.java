@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.devfusion.common.ApiException;
 import com.devfusion.common.CurrentUser;
 import com.devfusion.common.Result;
+import com.devfusion.common.UserNameResolver;
 import com.devfusion.user.User;
 import com.devfusion.user.mapper.UserMapper;
 import com.devfusion.workitem.mapper.WorkItemViewMapper;
@@ -28,10 +29,13 @@ public class WorkItemViewController {
 
     private final WorkItemViewMapper viewMapper;
     private final UserMapper userMapper;
+    private final UserNameResolver userNameResolver;
 
-    public WorkItemViewController(WorkItemViewMapper viewMapper, UserMapper userMapper) {
+    public WorkItemViewController(WorkItemViewMapper viewMapper, UserMapper userMapper,
+                                  UserNameResolver userNameResolver) {
         this.viewMapper = viewMapper;
         this.userMapper = userMapper;
+        this.userNameResolver = userNameResolver;
     }
 
     @Data
@@ -111,9 +115,7 @@ public class WorkItemViewController {
 
     private List<Map<String, Object>> toVos(List<WorkItemView> views) {
         List<Long> ownerIds = views.stream().map(WorkItemView::getOwnerId).filter(java.util.Objects::nonNull).distinct().toList();
-        Map<Long, String> nicknames = ownerIds.isEmpty() ? new HashMap<>()
-                : userMapper.selectBatchIds(ownerIds).stream()
-                        .collect(HashMap<Long, String>::new, (m, u) -> m.put(u.getId(), u.getNickname()), HashMap::putAll);
+        Map<Long, String> nicknames = userNameResolver.names(ownerIds);
         return views.stream().map(v -> {
             Map<String, Object> m = new HashMap<>();
             m.put("id", v.getId());

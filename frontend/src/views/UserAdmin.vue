@@ -5,8 +5,7 @@
       <el-button type="primary" @click="openCreate" data-testid="user-create">新建用户</el-button>
     </div>
 
-    <el-table :data="rows" data-testid="user-table">
-      <el-table-column prop="id" label="ID" width="70" />
+    <el-table :data="rows" v-loading="loading" data-testid="user-table">
       <el-table-column prop="username" label="用户名" width="140" />
       <el-table-column prop="nickname" label="昵称" width="140" />
       <el-table-column prop="email" label="邮箱" min-width="180" />
@@ -58,7 +57,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialog = false">取消</el-button>
-        <el-button type="primary" @click="save" data-testid="user-save">保存</el-button>
+        <el-button type="primary" :loading="saving" @click="save" data-testid="user-save">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -66,22 +65,33 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { createUser, deleteUser, listUsers, resetUserPassword, updateUser } from '../api'
 
+const route = useRoute()
+const router = useRouter()
 const rows = ref([])
+const loading = ref(false)
 const total = ref(0)
-const page = ref(1)
+const page = ref(Number(route.query.page) || 1)
 const size = 10
-const keyword = ref('')
+const keyword = ref((route.query.keyword || ''))
 const dialog = ref(false)
 const editId = ref(null)
+const saving = ref(false)
 const form = reactive({ username: '', password: '', nickname: '', email: '', role: 'MEMBER' })
 
 async function load() {
-  const resp = await listUsers({ keyword: keyword.value || undefined, page: page.value, size })
-  rows.value = resp.data.records
-  total.value = resp.data.total
+  loading.value = true
+  try {
+    const resp = await listUsers({ keyword: keyword.value || undefined, page: page.value, size })
+    rows.value = resp.data.records
+    total.value = resp.data.total
+  } finally {
+    loading.value = false
+  }
+  router.replace({ query: { ...(keyword.value ? { keyword: keyword.value } : {}), ...(page.value > 1 ? { page: page.value } : {}) } })
 }
 
 function openCreate() {
@@ -97,21 +107,28 @@ function openEdit(row) {
 }
 
 async function save() {
-  if (editId.value) {
-    await updateUser(editId.value, { nickname: form.nickname, email: form.email, role: form.role })
-  } else {
-    if (!form.username || !form.password || !form.nickname) {
-      ElMessage.warning('请完整填写用户名、密码和昵称')
-      return
+  saving.value = true
+  try {
+    if (editId.value) {
+      await updateUser(editId.value, { nickname: form.nickname, email: form.email, role: form.role })
+    } else {
+      if (!form.username || !form.password || !form.nickname) {
+        ElMessage.warning('请完整填写用户名、密码和昵称')
+        saving.value = false
+        return
+      }
+      await createUser(form)
     }
-    await createUser(form)
+    ElMessage.success('已保存')
+    dialog.value = false
+    await load()
+  } finally {
+    saving.value = false
   }
-  ElMessage.success('已保存')
-  dialog.value = false
-  await load()
 }
 
 async function toggle(row) {
+  await ElMessageBox.confirm(`确认${row.status === 1 ? '禁用' : '启用'}用户「${row.username}」？`, '提示', { type: 'warning' })
   await updateUser(row.id, { status: row.status === 1 ? 0 : 1 })
   ElMessage.success(row.status === 1 ? '已禁用' : '已启用')
   await load()
@@ -119,8 +136,10 @@ async function toggle(row) {
 
 async function resetPassword(row) {
   const { value } = await ElMessageBox.prompt(`为「${row.username}」设置新密码`, '重置密码', {
-    inputValue: 'admin123',
+    inputPlaceholder: '请输入新密码',
+    inputValue: '',
   })
+  if (!value) { ElMessage.warning('请输入新密码'); return }
   await resetUserPassword(row.id, value)
   ElMessage.success('密码已重置')
 }

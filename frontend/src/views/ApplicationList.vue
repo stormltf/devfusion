@@ -4,7 +4,7 @@
       <el-input v-model="keyword" placeholder="搜索应用" class="w-240" clearable @change="load" />
       <el-button type="primary" @click="dialog = true" data-testid="app-create">新建应用</el-button>
     </div>
-    <el-row :gutter="16">
+    <el-row :gutter="16" v-loading="loading">
       <el-col :span="8" v-for="a in apps" :key="a.id" style="margin-bottom: 16px">
         <div class="page-card app-card" @click="$router.push(`/applications/${a.id}`)">
           <div class="ac-head">
@@ -19,6 +19,7 @@
         </div>
       </el-col>
     </el-row>
+    <EmptyState v-if="!apps.length" title="暂无应用" description="点击右上角新建第一个应用" action-text="新建应用" @action="dialog = true" />
 
     <el-dialog v-model="dialog" title="新建应用" width="480px">
       <el-form :model="form" label-width="80px">
@@ -36,7 +37,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialog = false">取消</el-button>
-        <el-button type="primary" @click="save" data-testid="app-save">创建</el-button>
+        <el-button type="primary" :loading="saving" @click="save" data-testid="app-save">创建</el-button>
       </template>
     </el-dialog>
   </div>
@@ -46,14 +47,22 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { createApplication, listApplications } from '../api'
+import EmptyState from '../components/common/EmptyState.vue'
 
 const apps = ref([])
+const loading = ref(false)
 const keyword = ref('')
 const dialog = ref(false)
+const saving = ref(false)
 const form = reactive({ name: '', key: '', description: '', repoUrl: '', language: 'JAVA' })
 
 async function load() {
-  apps.value = (await listApplications({ keyword: keyword.value })).data
+  loading.value = true
+  try {
+    apps.value = (await listApplications({ keyword: keyword.value })).data
+  } finally {
+    loading.value = false
+  }
 }
 
 async function save() {
@@ -61,11 +70,16 @@ async function save() {
     ElMessage.warning('请填写应用名和标识')
     return
   }
-  await createApplication(form)
-  ElMessage.success('创建成功')
-  dialog.value = false
-  Object.assign(form, { name: '', key: '', description: '', repoUrl: '', language: 'JAVA' })
-  await load()
+  saving.value = true
+  try {
+    await createApplication(form)
+    ElMessage.success('创建成功')
+    dialog.value = false
+    Object.assign(form, { name: '', key: '', description: '', repoUrl: '', language: 'JAVA' })
+    await load()
+  } finally {
+    saving.value = false
+  }
 }
 
 onMounted(load)

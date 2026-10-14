@@ -95,6 +95,7 @@
 <script setup>
 import { onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { fmtTime } from '../utils/enums'
 import {
   addComment,
   addWorklog,
@@ -123,8 +124,6 @@ const worklogs = ref([])
 const wlForm = reactive({ hours: '', remaining: '', logDate: '', note: '' })
 const commentText = ref('')
 const tab = ref('desc')
-
-const fmtTime = (t) => (t ? String(t).replace('T', ' ').slice(0, 16) : '-')
 
 function actionText(a) {
   const d = a.detail ? JSON.parse(a.detail) : {}

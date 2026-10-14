@@ -11,7 +11,7 @@
       />
       <el-button type="primary" @click="dialog = true" data-testid="project-create">新建项目</el-button>
     </div>
-    <el-row :gutter="16">
+    <el-row :gutter="16" v-loading="loading">
       <el-col :span="8" v-for="p in projects" :key="p.id" style="margin-bottom: 16px">
         <div class="page-card project-card" @click="$router.push(`/projects/${p.id}/story`)">
           <div class="pc-head">
@@ -32,6 +32,7 @@
         </div>
       </el-col>
     </el-row>
+    <EmptyState v-if="!projects.length" title="暂无项目" description="点击右上角「新建项目」创建第一个项目" action-text="新建项目" @action="dialog = true" />
 
     <el-dialog v-model="dialog" title="新建项目" width="480px">
       <el-form :model="form" label-width="90px">
@@ -46,7 +47,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialog = false">取消</el-button>
-        <el-button type="primary" @click="save" data-testid="project-save">创建</el-button>
+        <el-button type="primary" :loading="saving" @click="save" data-testid="project-save">创建</el-button>
       </template>
     </el-dialog>
   </div>
@@ -56,15 +57,23 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { createProject, listProjects } from '../api'
+import EmptyState from '../components/common/EmptyState.vue'
 
 const projects = ref([])
+const loading = ref(false)
 const keyword = ref('')
 const dialog = ref(false)
+const saving = ref(false)
 const form = reactive({ name: '', key: '', description: '', color: '#0064ff' })
 
 async function load() {
-  const resp = await listProjects({ keyword: keyword.value })
-  projects.value = resp.data
+  loading.value = true
+  try {
+    const resp = await listProjects({ keyword: keyword.value })
+    projects.value = resp.data
+  } finally {
+    loading.value = false
+  }
 }
 
 async function save() {
@@ -72,13 +81,18 @@ async function save() {
     ElMessage.warning('请填写项目名称和标识')
     return
   }
-  await createProject(form)
-  ElMessage.success('创建成功')
-  dialog.value = false
-  form.name = ''
-  form.key = ''
-  form.description = ''
-  await load()
+  saving.value = true
+  try {
+    await createProject(form)
+    ElMessage.success('创建成功')
+    dialog.value = false
+    form.name = ''
+    form.key = ''
+    form.description = ''
+    await load()
+  } finally {
+    saving.value = false
+  }
 }
 
 onMounted(load)

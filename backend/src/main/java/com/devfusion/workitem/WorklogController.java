@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.devfusion.common.ApiException;
 import com.devfusion.common.CurrentUser;
 import com.devfusion.common.Result;
-import com.devfusion.user.User;
+import com.devfusion.common.UserNameResolver;
 import com.devfusion.user.mapper.UserMapper;
 import com.devfusion.workitem.mapper.WorkItemMapper;
 import com.devfusion.workitem.mapper.WorklogMapper;
@@ -29,11 +29,14 @@ public class WorklogController {
     private final WorklogMapper worklogMapper;
     private final WorkItemMapper itemMapper;
     private final UserMapper userMapper;
+    private final UserNameResolver userNameResolver;
 
-    public WorklogController(WorklogMapper worklogMapper, WorkItemMapper itemMapper, UserMapper userMapper) {
+    public WorklogController(WorklogMapper worklogMapper, WorkItemMapper itemMapper, UserMapper userMapper,
+                             UserNameResolver userNameResolver) {
         this.worklogMapper = worklogMapper;
         this.itemMapper = itemMapper;
         this.userMapper = userMapper;
+        this.userNameResolver = userNameResolver;
     }
 
     @Data
@@ -49,11 +52,9 @@ public class WorklogController {
         getOrThrow(id);
         List<Worklog> logs = worklogMapper.selectList(Wrappers.<Worklog>lambdaQuery()
                 .eq(Worklog::getItemId, id).orderByDesc(Worklog::getId));
-        List<Long> userIds = logs.stream().map(Worklog::getUserId).distinct().toList();
-        Map<Long, String> nicknames = userIds.isEmpty() ? new HashMap<>()
-                : userMapper.selectBatchIds(userIds).stream()
-                        .collect(HashMap<Long, String>::new, (m, u) -> m.put(u.getId(), u.getNickname()), HashMap::putAll);
-        return Result.ok(logs.stream().map(l -> {
+        List<Map<String, Object>> out = new java.util.ArrayList<>();
+        Map<Long, String> nicknames = userNameResolver.names(logs.stream().map(Worklog::getUserId).toList());
+        for (Worklog l : logs) {
             Map<String, Object> m = new HashMap<>();
             m.put("id", l.getId());
             m.put("itemId", l.getItemId());
@@ -64,8 +65,9 @@ public class WorklogController {
             m.put("logDate", l.getLogDate());
             m.put("note", l.getNote());
             m.put("createdAt", l.getCreatedAt());
-            return m;
-        }).toList());
+            out.add(m);
+        }
+        return Result.ok(out);
     }
 
     @PostMapping("/api/items/{id}/worklogs")

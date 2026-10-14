@@ -110,3 +110,27 @@ cd e2e && npm install && npx playwright install chromium && npx playwright test
 CORS：跨域来源由 `application.yml` 的 `devfusion.cors.allowed-origin` 控制，默认 `http://localhost:5173`，改前端端口时同步改。
 
 演示账号：`admin / admin123`（管理员）、`zhangwei / lina / wangqiang`（成员，同密码）。
+
+## 7. 全站枚举 code 清单（前端 enums.js 对照，code 保持英文）
+
+- 工作项状态 category：`TODO` / `IN_PROGRESS` / `DONE`（状态 code 可自定义，按项目 `work_item_status` 表，接口同时返回 `statusName`）。
+- 工作项优先级 `priority`：`URGENT`（紧急）/ `HIGH`（高）/ `MEDIUM`（中）/ `LOW`（低）。
+- 工作项类型 `type`：`STORY` / `TASK` / `BUG`。
+- 测试用例执行结果 `latest_result` / 计划用例 `result`：`UNEXECUTED`（未执行）/ `PASS` / `FAIL` / `BLOCKED` / `SKIPPED`。
+- 测试计划状态：`PLANNED` / `RUNNING` / `DONE` / `CANCELED`。
+- 测试计划阶段 `stage`：自由文本（冒烟/回归/验收等）。
+- 迭代状态：`PLANNED` / `IN_PROGRESS` / `COMPLETED` / `CANCELED`。
+- 发布 `release.status`：`PLANNED`（未发布）/ `RELEASED`（已发布）/ `ARCHIVED`（已归档）/ `CANCELED`（已取消）。
+- 项目状态：`ACTIVE` / `ARCHIVED`。
+- 流水线触发方式 `trigger_type`：`MANUAL` / `WEBHOOK` / `SCHEDULE`。
+- 构建/任务状态：`PENDING` / `RUNNING` / `SUCCESS` / `FAILED` / `CANCELED` / `WAITING_APPROVAL`。
+- 部署状态：`PENDING` / `RUNNING` / `SUCCESS` / `FAILED` / `ROLLBACK` / `PENDING_APPROVAL`。
+- 部署类型 `deploy_type`：`DEPLOY` / `ROLLBACK`。
+- 制品阶段 `stage`：`BUILT` / `PROMOTED` / `RELEASED`。
+- 用户角色：`ADMIN` / `MEMBER`。
+
+## 8. 用户姓名字段与统计口径约定
+
+- 所有返回 `*Id`（assigneeId/ownerId/creatorId/reporterId/executorId/operatorId/triggerUserId 等）的接口，同时返回对应 `xxxName`（用户 nickname）。用户已删除/查不到时统一返回常量「已删除用户」，**前端不要再拼「用户#id」兜底**。
+- 时间序列化：LocalDateTime 为 ISO-8601（如 `2026-10-14T12:00:00`），LocalDate 为 `2026-10-14`，全站一致，无时区偏移。
+- `GET /api/dashboard/project/{id}/bug-report` 口径：`scope=open`，`unresolvedCount`、`byPriority`、`byAssignee` 三者分母一致（均为未关闭 BUG）。`byAssignee` 为结构数组 `[{assigneeId, assigneeName, count}]`；趋势 trend 为「按日新建 vs 已解决」。重开 `reopenCount` = 状态从 DONE 类回到非 DONE 类的流转次数。

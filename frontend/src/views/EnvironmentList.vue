@@ -9,7 +9,7 @@
         <div class="page-card env-card">
           <div style="display: flex; justify-content: space-between; align-items: center">
             <b>{{ e.name }}</b>
-            <el-tag size="small" :type="envType(e.type)">{{ e.type }}</el-tag>
+            <el-tag size="small" :type="envType(e.type)">{{ envLabel(e.type) }}</el-tag>
           </div>
           <div style="color: #999; font-size: 12px; margin: 6px 0">{{ e.key }} · {{ e.description || '暂无描述' }}</div>
           <div style="color: #666; font-size: 12px">主机：{{ e.hosts || '-' }}</div>
@@ -24,6 +24,7 @@
         </div>
       </el-col>
     </el-row>
+    <EmptyState v-if="!envs.length" title="暂无环境" description="部署目标环境由团队自建，点击右上角新建" action-text="新建环境" @action="dialog = true" />
 
     <el-dialog v-model="dialog" :title="editId ? '编辑环境' : '新建环境'" width="460px">
       <el-form :model="form" label-width="70px">
@@ -48,7 +49,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialog = false">取消</el-button>
-        <el-button type="primary" @click="save" data-testid="env-save">保存</el-button>
+        <el-button type="primary" :loading="saving" @click="save" data-testid="env-save">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -58,14 +59,17 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { createEnvironment, deleteEnvironment, listEnvironments, updateEnvironment, listHostGroups } from '../api'
+import EmptyState from '../components/common/EmptyState.vue'
 
 const envs = ref([])
 const groups = ref([])
 const dialog = ref(false)
 const editId = ref(null)
+const saving = ref(false)
 const form = reactive({ name: '', key: '', type: 'TEST', description: '', hosts: '', hostGroupId: null, requireApproval: false })
 
 const envType = (t) => ({ DEV: 'info', TEST: 'primary', STAGING: 'warning', PROD: 'danger' }[t] || 'info')
+const envLabel = (t) => ({ DEV: '开发', TEST: '测试', STAGING: '预发', PROD: '生产' }[t] || t)
 
 async function load() {
   envs.value = (await listEnvironments()).data
@@ -82,17 +86,22 @@ async function save() {
     ElMessage.warning('请填写名称和标识')
     return
   }
-  const payload = { ...form, requireApproval: form.requireApproval ? 1 : 0 }
-  if (editId.value) {
-    await updateEnvironment(editId.value, payload)
-  } else {
-    await createEnvironment(payload)
+  saving.value = true
+  try {
+    const payload = { ...form, requireApproval: form.requireApproval ? 1 : 0 }
+    if (editId.value) {
+      await updateEnvironment(editId.value, payload)
+    } else {
+      await createEnvironment(payload)
+    }
+    ElMessage.success('已保存')
+    dialog.value = false
+    editId.value = null
+    Object.assign(form, { name: '', key: '', type: 'TEST', description: '', hosts: '', hostGroupId: null, requireApproval: false })
+    await load()
+  } finally {
+    saving.value = false
   }
-  ElMessage.success('已保存')
-  dialog.value = false
-  editId.value = null
-  Object.assign(form, { name: '', key: '', type: 'TEST', description: '', hosts: '', hostGroupId: null, requireApproval: false })
-  await load()
 }
 
 async function remove(e) {

@@ -7,7 +7,13 @@
         <el-radio-button value="BUG">缺陷</el-radio-button>
       </el-radio-group>
     </div>
-    <div class="backlog-layout">
+    <el-alert
+      v-if="loadError"
+      type="error" show-icon :closable="false" title="加载失败" style="margin-bottom: 12px"
+    >
+      <el-button size="small" type="primary" @click="load" data-testid="retry-load">重试</el-button>
+    </el-alert>
+    <div class="backlog-layout" v-loading="loading">
       <div
         class="column"
         data-testid="backlog-unplanned"
@@ -28,7 +34,7 @@
         >
           <span class="item-no">{{ it.itemNo }}</span>
           <span class="item-title">{{ it.title }}</span>
-          <el-tag size="small" :type="priorityType(it.priority)" effect="plain">{{ priorityLabel(it.priority) }}</el-tag>
+          <PriorityTag :value="it.priority" />
         </div>
         <div v-if="!unplanned.length" class="empty">拖拽工作项到右侧迭代即可规划</div>
       </div>
@@ -55,7 +61,7 @@
         >
           <span class="item-no">{{ c.itemNo }}</span>
           <span class="item-title">{{ c.title }}</span>
-          <el-button link type="danger" size="small" @click="unplan(c)" :data-testid="`backlog-remove-${c.id}`">移出</el-button>
+          <el-button link type="danger" size="small" @click="confirmUnplan(c)" :data-testid="`backlog-remove-${c.id}`">移出</el-button>
         </div>
         <div v-if="!(planned[it.id] || []).length" class="empty">拖到这里规划</div>
       </div>
@@ -65,21 +71,22 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { listBacklog, listIterations, listItems, planBacklog, unplanBacklog } from '../api'
+import PriorityTag from './common/PriorityTag.vue'
+import { ITERATION_STATUS } from '../utils/enums'
 
 const props = defineProps({ projectId: String })
 const type = ref('STORY')
 const unplanned = ref([])
 const iterations = ref([])
 const planned = ref({})
+const loading = ref(false)
+const loadError = ref(false)
 let dragItem = null
 
-const priorities = { URGENT: '紧急', HIGH: '高', MEDIUM: '中', LOW: '低' }
-const priorityLabel = (p) => priorities[p] || p
-const priorityType = (p) => ({ URGENT: 'danger', HIGH: 'warning', MEDIUM: 'primary', LOW: 'info' }[p] || 'info')
-const iterLabel = (s) => ({ PLANNED: '规划中', IN_PROGRESS: '进行中', COMPLETED: '已完成', CANCELED: '已取消' }[s] || s)
-const iterType = (s) => ({ PLANNED: 'info', IN_PROGRESS: 'primary', COMPLETED: 'success', CANCELED: 'danger' }[s] || 'info')
+const iterLabel = (s) => ITERATION_STATUS[s]?.label || s
+const iterType = (s) => ITERATION_STATUS[s]?.type || 'info'
 
 function onDragStart(e, item) {
   dragItem = item
@@ -98,6 +105,11 @@ async function onDrop(iterationId) {
   await load()
 }
 
+async function confirmUnplan(item) {
+  await ElMessageBox.confirm(`确认将「${item.itemNo}」移出当前迭代？`, '提示', { type: 'warning' })
+  await unplan(item)
+}
+
 async function unplan(item, reload = true) {
   await unplanBacklog(props.projectId, { itemIds: [item.id] })
   ElMessage.success('已移出迭代')
@@ -105,16 +117,24 @@ async function unplan(item, reload = true) {
 }
 
 async function load() {
-  const [un, its] = await Promise.all([
-    listBacklog(props.projectId, { type: type.value, size: 100 }),
-    listIterations(props.projectId),
-  ])
-  unplanned.value = un.data.records
-  iterations.value = its.data
-  planned.value = {}
-  for (const it of its.data) {
-    const resp = await listItems(props.projectId, { iterationId: it.id, size: 100 })
-    planned.value[it.id] = resp.data.records
+  loading.value = true
+  loadError.value = false
+  try {
+    const [un, its] = await Promise.all([
+      listBacklog(props.projectId, { type: type.value, size: 100 }),
+      listIterations(props.projectId),
+    ])
+    unplanned.value = un.data.records
+    iterations.value = its.data
+    planned.value = {}
+    for (const it of its.data) {
+      const resp = await listItems(props.projectId, { iterationId: it.id, size: 100 })
+      planned.value[it.id] = resp.data.records
+    }
+  } catch {
+    loadError.value = true
+  } finally {
+    loading.value = false
   }
 }
 

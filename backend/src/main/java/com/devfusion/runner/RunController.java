@@ -6,6 +6,7 @@ import com.devfusion.common.ApiException;
 import com.devfusion.common.CurrentUser;
 import com.devfusion.common.PageResult;
 import com.devfusion.common.Result;
+import com.devfusion.common.UserNameResolver;
 import com.devfusion.user.User;
 import com.devfusion.user.mapper.UserMapper;
 import com.devfusion.runner.mapper.PipelineRunMapper;
@@ -39,12 +40,13 @@ public class RunController {
     private final PipelineExecutor executor;
     private final RunWorkItemMapper runWorkItemMapper;
     private final StringRedisTemplate redis;
+    private final UserNameResolver userNameResolver;
 
     public RunController(RunService runService, PipelineRunMapper runMapper, RunStageMapper runStageMapper,
                          RunJobMapper runJobMapper, UserMapper userMapper,
                          com.devfusion.pipeline.mapper.PipelineMapper pipelineMapper,
                          PipelineExecutor executor, RunWorkItemMapper runWorkItemMapper,
-                         StringRedisTemplate redis) {
+                         StringRedisTemplate redis, UserNameResolver userNameResolver) {
         this.runService = runService;
         this.runMapper = runMapper;
         this.runStageMapper = runStageMapper;
@@ -54,6 +56,7 @@ public class RunController {
         this.executor = executor;
         this.runWorkItemMapper = runWorkItemMapper;
         this.redis = redis;
+        this.userNameResolver = userNameResolver;
     }
 
     @Data
@@ -174,8 +177,7 @@ public class RunController {
         m.put("finishedAt", run.getFinishedAt());
         m.put("durationMs", run.getDurationMs());
         if (run.getTriggerUserId() != null) {
-            User u = userMapper.selectById(run.getTriggerUserId());
-            m.put("triggerUserName", u != null ? u.getNickname() : null);
+            m.put("triggerUserName", userNameResolver.name(run.getTriggerUserId()));
         }
         List<Map<String, Object>> stages = new ArrayList<>();
         for (RunStage s : runStageMapper.selectList(Wrappers.<RunStage>lambdaQuery()
@@ -252,10 +254,8 @@ public class RunController {
                         return pl != null ? pl.getName() : null;
                     }));
             if (r.getTriggerUserId() != null) {
-                m.put("triggerUserName", userNames.computeIfAbsent(r.getTriggerUserId(), uid -> {
-                    User u = userMapper.selectById(uid);
-                    return u != null ? u.getNickname() : null;
-                }));
+                m.put("triggerUserName", userNames.computeIfAbsent(r.getTriggerUserId(),
+                        userNameResolver::name));
             }
             return m;
         }).toList();

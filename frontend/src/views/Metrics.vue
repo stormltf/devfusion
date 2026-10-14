@@ -8,17 +8,16 @@
         <el-radio-button :value="30">近 30 天</el-radio-button>
       </el-radio-group>
     </div>
-    <el-row :gutter="16">
+    <el-row :gutter="12">
       <el-col :span="4" v-for="c in cards" :key="c.label">
-        <div class="page-card stat-card">
-          <div class="stat-label">{{ c.label }}</div>
-          <div class="stat-value" :style="{ color: c.color }">{{ c.value }}</div>
-        </div>
+        <StatCard :label="c.label" :value="c.value" :value-color="c.color" />
       </el-col>
     </el-row>
 
+    <ChartCard title="按日趋势" :subtitle="`近 ${days} 天部署 / 构建成功量`" :option="trendOption" height="300px" style="margin-top: 16px" />
+
     <div class="page-card" style="margin-top: 16px">
-      <div style="font-weight: 600; margin-bottom: 12px">按日趋势</div>
+      <div class="panel-title">按日明细</div>
       <el-table :data="m.trend || []" size="small" data-testid="metrics-trend">
         <el-table-column prop="date" label="日期" width="120" />
         <el-table-column prop="deployCount" label="部署次数" width="100" />
@@ -33,6 +32,8 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { getMetrics } from '../api'
+import StatCard from '../components/common/StatCard.vue'
+import ChartCard from '../components/common/ChartCard.vue'
 
 const days = ref(7)
 const m = ref({})
@@ -48,13 +49,21 @@ const cards = computed(() => [
 const pct = (v) => (v == null ? '-' : `${v}%`)
 const ms = (v) => (v == null ? '-' : `${(v / 1000).toFixed(1)}s`)
 
+const trendOption = computed(() => ({
+  legend: { data: ['成功部署', '成功构建'] },
+  xAxis: { type: 'category', data: (m.value.trend || []).map((t) => t.date) },
+  yAxis: { type: 'value', minInterval: 1 },
+  series: [
+    { name: '成功部署', type: 'bar', data: (m.value.trend || []).map((t) => t.deploySuccessCount) },
+    { name: '成功构建', type: 'bar', data: (m.value.trend || []).map((t) => t.runSuccessCount) },
+  ],
+}))
+
 async function load() { m.value = (await getMetrics(days.value)).data }
 onMounted(load)
 </script>
 
 <style scoped>
 .toolbar { display: flex; justify-content: space-between; margin-bottom: 16px; }
-.stat-card { padding: 18px 20px; }
-.stat-label { color: var(--df-text-3); font-size: var(--df-font-sm); }
-.stat-value { font-size: 26px; font-weight: 700; margin: 6px 0; color: var(--df-text); line-height: 1.1; }
+.panel-title { font-weight: 600; margin-bottom: 10px; font-size: var(--df-font-lg); color: var(--df-text); }
 </style>

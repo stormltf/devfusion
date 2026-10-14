@@ -6,6 +6,7 @@ import com.devfusion.common.ApiException;
 import com.devfusion.common.CurrentUser;
 import com.devfusion.common.PageResult;
 import com.devfusion.common.Result;
+import com.devfusion.common.UserNameResolver;
 import com.devfusion.user.User;
 import com.devfusion.user.mapper.UserMapper;
 import com.devfusion.workflow.WorkItemStatus;
@@ -41,16 +42,19 @@ public class WorkItemController {
     private final WorkItemStatusMapper statusMapper;
     private final UserMapper userMapper;
     private final WorkItemService service;
+    private final UserNameResolver userNameResolver;
 
     public WorkItemController(WorkItemMapper itemMapper, WorkItemCommentMapper commentMapper,
                               WorkItemActivityMapper activityMapper, WorkItemStatusMapper statusMapper,
-                              UserMapper userMapper, WorkItemService service) {
+                              UserMapper userMapper, WorkItemService service,
+                              UserNameResolver userNameResolver) {
         this.itemMapper = itemMapper;
         this.commentMapper = commentMapper;
         this.activityMapper = activityMapper;
         this.statusMapper = statusMapper;
         this.userMapper = userMapper;
         this.service = service;
+        this.userNameResolver = userNameResolver;
     }
 
     private static final Map<String, String> SORT_COLUMNS = Map.of(
@@ -212,14 +216,13 @@ public class WorkItemController {
         c.setContent(req.getContent());
         commentMapper.insert(c);
         service.logActivity(item, "COMMENT", Map.of("content", req.getContent()));
-        User u = userMapper.selectById(c.getUserId());
         Map<String, Object> vo = new HashMap<>();
         vo.put("id", c.getId());
         vo.put("itemId", c.getItemId());
         vo.put("userId", c.getUserId());
         vo.put("content", c.getContent());
         vo.put("createdAt", c.getCreatedAt());
-        vo.put("nickname", u != null ? u.getNickname() : null);
+        vo.put("nickname", userNameResolver.name(c.getUserId()));
         return Result.ok(vo);
     }
 
@@ -228,10 +231,8 @@ public class WorkItemController {
         getOrThrow(id);
         List<WorkItemComment> comments = commentMapper.selectList(Wrappers.<WorkItemComment>lambdaQuery()
                 .eq(WorkItemComment::getItemId, id).orderByAsc(WorkItemComment::getId));
-        List<Long> userIds = comments.stream().map(WorkItemComment::getUserId).distinct().toList();
-        Map<Long, String> nicknames = userIds.isEmpty() ? Map.of()
-                : userMapper.selectBatchIds(userIds).stream()
-                        .collect(Collectors.toMap(User::getId, User::getNickname));
+        Map<Long, String> nicknames = userNameResolver.names(
+                comments.stream().map(WorkItemComment::getUserId).toList());
         return Result.ok(comments.stream().map(c -> {
             Map<String, Object> vo = new HashMap<>();
             vo.put("id", c.getId());
@@ -250,10 +251,8 @@ public class WorkItemController {
         getOrThrow(id);
         List<WorkItemActivity> acts = activityMapper.selectList(Wrappers.<WorkItemActivity>lambdaQuery()
                 .eq(WorkItemActivity::getItemId, id).orderByDesc(WorkItemActivity::getId));
-        List<Long> userIds = acts.stream().map(WorkItemActivity::getUserId).distinct().toList();
-        Map<Long, String> nicknames = userIds.isEmpty() ? Map.of()
-                : userMapper.selectBatchIds(userIds).stream()
-                        .collect(Collectors.toMap(User::getId, User::getNickname));
+        Map<Long, String> nicknames = userNameResolver.names(
+                acts.stream().map(WorkItemActivity::getUserId).toList());
         return Result.ok(acts.stream().map(a -> {
             Map<String, Object> vo = new HashMap<>();
             vo.put("id", a.getId());

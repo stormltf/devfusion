@@ -45,7 +45,7 @@ test.describe.serial('项目管理', () => {
   test('添加项目成员并可调整角色', async ({ page }) => {
     await page.goto('/projects')
     await page.locator('.project-card', { hasText: projectName }).click()
-    await page.getByRole('tab', { name: '成员' }).click()
+    await page.getByTestId('proj-nav-member').click()
     await page.getByTestId('member-add').click()
     await pickOption(page, page.getByTestId('member-user-select'), '李娜')
     await page.getByTestId('member-save').click()
@@ -65,7 +65,7 @@ test.describe.serial('项目管理', () => {
   test('移除项目成员', async ({ page }) => {
     await page.goto('/projects')
     await page.locator('.project-card', { hasText: projectName }).click()
-    await page.getByRole('tab', { name: '成员' }).click()
+    await page.getByTestId('proj-nav-member').click()
     await page.locator('tr', { hasText: '李娜' }).first().getByRole('button', { name: '移除' }).click()
     await page.getByRole('button', { name: '确定' }).click()
     await expectToast(page, '已移除')

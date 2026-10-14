@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.devfusion.common.ApiException;
 import com.devfusion.common.CurrentUser;
 import com.devfusion.common.Result;
+import com.devfusion.common.UserNameResolver;
 import com.devfusion.project.Project;
 import com.devfusion.project.mapper.ProjectMapper;
 import com.devfusion.testcase.TestCase;
@@ -40,14 +41,17 @@ public class TestPlanController {
     private final TestCaseMapper caseMapper;
     private final ProjectMapper projectMapper;
     private final UserMapper userMapper;
+    private final UserNameResolver userNameResolver;
 
     public TestPlanController(TestPlanMapper planMapper, TestPlanCaseMapper planCaseMapper,
-                              TestCaseMapper caseMapper, ProjectMapper projectMapper, UserMapper userMapper) {
+                              TestCaseMapper caseMapper, ProjectMapper projectMapper, UserMapper userMapper,
+                              UserNameResolver userNameResolver) {
         this.planMapper = planMapper;
         this.planCaseMapper = planCaseMapper;
         this.caseMapper = caseMapper;
         this.projectMapper = projectMapper;
         this.userMapper = userMapper;
+        this.userNameResolver = userNameResolver;
     }
 
     @Data
@@ -268,9 +272,7 @@ public class TestPlanController {
                 : planMapper.selectBatchIds(planIds).stream()
                         .collect(HashMap<Long, String>::new, (m, pl) -> m.put(pl.getId(), pl.getName()), HashMap::putAll);
         List<Long> executorIds = rows.stream().map(TestPlanCase::getExecutorId).filter(java.util.Objects::nonNull).distinct().toList();
-        Map<Long, String> nicknames = executorIds.isEmpty() ? new HashMap<>()
-                : userMapper.selectBatchIds(executorIds).stream()
-                        .collect(HashMap<Long, String>::new, (m, u) -> m.put(u.getId(), u.getNickname()), HashMap::putAll);
+        Map<Long, String> nicknames = userNameResolver.names(executorIds);
         List<Map<String, Object>> out = new ArrayList<>();
         for (TestPlanCase r : rows) {
             Map<String, Object> m = new HashMap<>();
@@ -292,6 +294,7 @@ public class TestPlanController {
         m.put("projectId", p.getProjectId());
         m.put("name", p.getName());
         m.put("ownerId", p.getOwnerId());
+        m.put("ownerName", userNameResolver.name(p.getOwnerId()));
         m.put("stage", p.getStage());
         m.put("iterationId", p.getIterationId());
         m.put("status", p.getStatus());
@@ -318,9 +321,7 @@ public class TestPlanController {
                 : caseMapper.selectBatchIds(caseIds).stream()
                         .collect(HashMap<Long, TestCase>::new, (m, c) -> m.put(c.getId(), c), HashMap::putAll);
         List<Long> executorIds = rows.stream().map(TestPlanCase::getExecutorId).filter(java.util.Objects::nonNull).distinct().toList();
-        Map<Long, String> nicknames = executorIds.isEmpty() ? new HashMap<>()
-                : userMapper.selectBatchIds(executorIds).stream()
-                        .collect(HashMap<Long, String>::new, (m, u) -> m.put(u.getId(), u.getNickname()), HashMap::putAll);
+        Map<Long, String> nicknames = userNameResolver.names(executorIds);
         List<Map<String, Object>> out = new ArrayList<>();
         for (TestPlanCase r : rows) {
             TestCase c = caseMap.get(r.getCaseId());

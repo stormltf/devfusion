@@ -6,7 +6,13 @@
     </div>
 
     <div class="page-card">
-      <el-table :data="plans" data-testid="plan-table">
+      <el-alert
+        v-if="loadError"
+        type="error" show-icon :closable="false" title="加载失败" style="margin-bottom: 12px"
+      >
+        <el-button size="small" type="primary" @click="load" data-testid="retry-load">重试</el-button>
+      </el-alert>
+      <el-table v-loading="loading" :data="plans" data-testid="plan-table">
         <el-table-column prop="name" label="名称" min-width="200" />
         <el-table-column prop="stage" label="阶段" width="110" />
         <el-table-column label="状态" width="100">
@@ -41,7 +47,7 @@
       </el-form>
       <template #footer>
         <el-button @click="createDialog = false">取消</el-button>
-        <el-button type="primary" @click="save" data-testid="plan-save">创建</el-button>
+        <el-button type="primary" :loading="saving" @click="save" data-testid="plan-save">创建</el-button>
       </template>
     </el-dialog>
 
@@ -72,7 +78,7 @@
           </el-table-column>
           <el-table-column label="结果" width="90">
             <template #default="{ row }">
-              <el-tag size="small" :type="resultType(row.result)">{{ resultLabel(row.result) }}</el-tag>
+              <StatusTag :code="row.result" domain="testResult" />
             </template>
           </el-table-column>
           <el-table-column label="操作" width="150" fixed="right">
@@ -94,10 +100,15 @@ import {
   addPlanCases, createTestPlan, deleteTestPlan, executePlanCase, getTestPlan,
   listTestCases, listTestPlans, listSimpleUsers, setPlanExecutors,
 } from '../api'
+import StatusTag from './common/StatusTag.vue'
+import { PLAN_STATUS } from '../utils/enums'
 
 const props = defineProps({ projectId: String })
 const plans = ref([])
+const loading = ref(false)
+const loadError = ref(false)
 const createDialog = ref(false)
+const saving = ref(false)
 const form = ref({ name: '', stage: '' })
 const detailVisible = ref(false)
 const detail = ref({ cases: [] })
@@ -105,10 +116,12 @@ const users = ref([])
 const allCases = ref([])
 const newCaseId = ref(null)
 
-const planLabel = (s) => ({ PLANNED: '规划中', IN_PROGRESS: '进行中', DONE: '已完成', CANCELED: '已取消' }[s] || s)
-const planType = (s) => ({ PLANNED: 'info', IN_PROGRESS: 'primary', DONE: 'success', CANCELED: 'danger' }[s] || 'info')
-const resultLabel = (r) => ({ UNEXECUTED: '未执行', PASS: '通过', FAIL: '失败', BLOCKED: '阻塞', SKIPPED: '跳过' }[r] || r)
-const resultType = (r) => ({ PASS: 'success', FAIL: 'danger', BLOCKED: 'warning' }[r] || 'info')
+const planLabel = (s) => PLAN_STATUS[s]?.label || s
+const planType = (s) => PLAN_STATUS[s]?.type || 'info'
+const resultLabel = (r) => {
+  const map = { UNEXECUTED: '未执行', PASS: '通过', FAIL: '失败', BLOCKED: '阻塞', SKIPPED: '跳过' }
+  return map[r] || r
+}
 
 const availableCases = computed(() => {
   const used = new Set((detail.value.cases || []).map((c) => c.caseId))
@@ -116,7 +129,15 @@ const availableCases = computed(() => {
 })
 
 async function load() {
-  plans.value = (await listTestPlans(props.projectId)).data
+  loading.value = true
+  loadError.value = false
+  try {
+    plans.value = (await listTestPlans(props.projectId)).data
+  } catch {
+    loadError.value = true
+  } finally {
+    loading.value = false
+  }
 }
 
 function openCreate() {
@@ -129,10 +150,15 @@ async function save() {
     ElMessage.warning('请填写名称')
     return
   }
-  await createTestPlan(props.projectId, form.value)
-  ElMessage.success('创建成功')
-  createDialog.value = false
-  await load()
+  saving.value = true
+  try {
+    await createTestPlan(props.projectId, form.value)
+    ElMessage.success('创建成功')
+    createDialog.value = false
+    await load()
+  } finally {
+    saving.value = false
+  }
 }
 
 async function openDetail(row) {

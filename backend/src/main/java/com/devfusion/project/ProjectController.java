@@ -6,6 +6,7 @@ import com.devfusion.common.ApiException;
 import com.devfusion.common.CurrentUser;
 import com.devfusion.common.PageResult;
 import com.devfusion.common.Result;
+import com.devfusion.common.UserNameResolver;
 import com.devfusion.user.User;
 import com.devfusion.user.mapper.UserMapper;
 import com.devfusion.workflow.WorkflowService;
@@ -39,6 +40,7 @@ public class ProjectController {
     private final ProjectMemberMapper memberMapper;
     private final UserMapper userMapper;
     private final WorkflowService workflowService;
+    private final UserNameResolver userNameResolver;
 
     @Data
     public static class ProjectReq {
@@ -68,10 +70,9 @@ public class ProjectController {
         List<Map<String, Object>> result = projects.stream().map(p -> {
             Long memberCount = memberMapper.selectCount(
                     Wrappers.<ProjectMember>lambdaQuery().eq(ProjectMember::getProjectId, p.getId()));
-            User owner = userMapper.selectById(p.getOwnerId());
             Map<String, Object> m = toMap(p);
             m.put("memberCount", memberCount);
-            m.put("ownerName", owner != null ? owner.getNickname() : null);
+            m.put("ownerName", userNameResolver.name(p.getOwnerId()));
             return m;
         }).toList();
         return Result.ok(result);
@@ -110,8 +111,7 @@ public class ProjectController {
     public Result<Map<String, Object>> detail(@PathVariable Long id) {
         Project p = getOrThrow(id);
         Map<String, Object> m = toMap(p);
-        User owner = userMapper.selectById(p.getOwnerId());
-        m.put("ownerName", owner != null ? owner.getNickname() : null);
+        m.put("ownerName", userNameResolver.name(p.getOwnerId()));
         m.put("memberCount", memberMapper.selectCount(
                 Wrappers.<ProjectMember>lambdaQuery().eq(ProjectMember::getProjectId, id)));
         return Result.ok(m);
@@ -157,6 +157,8 @@ public class ProjectController {
         List<ProjectMember> members = memberMapper.selectList(Wrappers.<ProjectMember>lambdaQuery()
                 .eq(ProjectMember::getProjectId, id).orderByAsc(ProjectMember::getId));
         List<Long> userIds = members.stream().map(ProjectMember::getUserId).toList();
+        Map<Long, String> nicknames = userNameResolver.names(
+                members.stream().map(ProjectMember::getUserId).toList());
         Map<Long, User> users = userIds.isEmpty() ? Map.of()
                 : userMapper.selectBatchIds(userIds).stream()
                         .collect(Collectors.toMap(User::getId, u -> u));
@@ -167,7 +169,7 @@ public class ProjectController {
             vo.put("userId", m.getUserId());
             vo.put("roleCode", m.getRoleCode());
             vo.put("joinedAt", m.getJoinedAt());
-            vo.put("nickname", u != null ? u.getNickname() : null);
+            vo.put("nickname", nicknames.get(m.getUserId()));
             vo.put("username", u != null ? u.getUsername() : null);
             return vo;
         }).toList();

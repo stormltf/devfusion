@@ -34,6 +34,7 @@ test.describe.serial('用户管理（仅管理员）', () => {
     await page.goto('/admin/users')
     const row = page.locator('tr', { hasText: username }).first()
     await row.getByRole('button', { name: '禁用' }).click()
+    await page.locator('.el-message-box__btns .el-button--primary').click()
     await expectToast(page, '已禁用')
 
     // 登出后用该用户登录
@@ -50,6 +51,7 @@ test.describe.serial('用户管理（仅管理员）', () => {
     await page.goto('/admin/users')
     const row = page.locator('tr', { hasText: username }).first()
     await row.getByRole('button', { name: '启用' }).click()
+    await page.locator('.el-message-box__btns .el-button--primary').click()
     await expectToast(page, '已启用')
     await row.getByRole('button', { name: '重置密码' }).click()
     await page.locator('.el-message-box__input input').fill('newpass123')

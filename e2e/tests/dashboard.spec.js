@@ -9,10 +9,10 @@ test.describe('总览与制品库', () => {
   test('总览统计卡片与图表渲染', async ({ page }) => {
     await page.goto('/dashboard')
     // 四张统计卡的数值为数字
-    await expect(page.locator('.stat-card', { hasText: '项目数' }).locator('.stat-value')).toHaveText(/^\d+$/)
-    await expect(page.locator('.stat-card', { hasText: '应用数' }).locator('.stat-value')).toHaveText(/^\d+$/)
-    await expect(page.locator('.stat-card', { hasText: '构建次数' }).locator('.stat-value')).toHaveText(/^\d+$/)
-    await expect(page.locator('.stat-card', { hasText: '部署次数' }).locator('.stat-value')).toHaveText(/^\d+$/)
+    await expect(page.locator('.stat-card', { hasText: '项目数' }).locator('.sc-value')).toHaveText(/^\d+$/)
+    await expect(page.locator('.stat-card', { hasText: '应用数' }).locator('.sc-value')).toHaveText(/^\d+$/)
+    await expect(page.locator('.stat-card', { hasText: '构建次数' }).locator('.sc-value')).toHaveText(/^\d+$/)
+    await expect(page.locator('.stat-card', { hasText: '部署次数' }).locator('.sc-value')).toHaveText(/^\d+$/)
     // ECharts 画布渲染
     await expect(page.locator('canvas').first()).toBeVisible()
     // 最近部署表格有种子数据

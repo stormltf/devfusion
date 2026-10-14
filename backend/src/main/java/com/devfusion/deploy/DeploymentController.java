@@ -10,6 +10,7 @@ import com.devfusion.common.ApiException;
 import com.devfusion.common.CurrentUser;
 import com.devfusion.common.PageResult;
 import com.devfusion.common.Result;
+import com.devfusion.common.UserNameResolver;
 import com.devfusion.environment.Environment;
 import com.devfusion.environment.mapper.EnvironmentMapper;
 import lombok.Data;
@@ -40,13 +41,15 @@ public class DeploymentController {
     private final com.devfusion.notification.NotificationService notificationService;
     private final com.devfusion.user.mapper.UserMapper userMapper;
     private final StringRedisTemplate redis;
+    private final com.devfusion.common.UserNameResolver userNameResolver;
 
     public DeploymentController(DeploymentMapper mapper, ArtifactMapper artifactMapper,
                                 ApplicationMapper applicationMapper, EnvironmentMapper environmentMapper,
                                 DeployExecutor executor,
                                 com.devfusion.notification.NotificationService notificationService,
                                 com.devfusion.user.mapper.UserMapper userMapper,
-                                StringRedisTemplate redis) {
+                                StringRedisTemplate redis,
+                                com.devfusion.common.UserNameResolver userNameResolver) {
         this.mapper = mapper;
         this.artifactMapper = artifactMapper;
         this.applicationMapper = applicationMapper;
@@ -55,6 +58,7 @@ public class DeploymentController {
         this.notificationService = notificationService;
         this.userMapper = userMapper;
         this.redis = redis;
+        this.userNameResolver = userNameResolver;
     }
 
     @Data
@@ -231,6 +235,7 @@ public class DeploymentController {
         m.put("deployTemplateId", d.getDeployTemplateId());
         m.put("status", d.getStatus());
         m.put("operatorId", d.getOperatorId());
+        m.put("operatorName", userNameResolver.name(d.getOperatorId()));
         m.put("log", d.getLog());
         m.put("startedAt", d.getStartedAt());
         m.put("finishedAt", d.getFinishedAt());

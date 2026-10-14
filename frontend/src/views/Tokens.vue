@@ -12,10 +12,10 @@
         <template #default="{ row }"><span style="font-family: monospace">dfpat-****{{ row.tokenHash ? row.tokenHash.slice(-6) : '' }}</span></template>
       </el-table-column>
       <el-table-column label="最近使用" width="160">
-        <template #default="{ row }">{{ row.lastUsedAt ? fmt(row.lastUsedAt) : '从未使用' }}</template>
+        <template #default="{ row }">{{ row.lastUsedAt ? fmtTime(row.lastUsedAt) : '从未使用' }}</template>
       </el-table-column>
       <el-table-column label="创建时间" width="160">
-        <template #default="{ row }">{{ fmt(row.createdAt) }}</template>
+        <template #default="{ row }">{{ fmtTime(row.createdAt) }}</template>
       </el-table-column>
       <el-table-column label="操作" width="90">
         <template #default="{ row }">
@@ -30,7 +30,7 @@
       </el-form>
       <template #footer>
         <el-button @click="createDialog = false">取消</el-button>
-        <el-button type="primary" @click="save" data-testid="token-save">创建</el-button>
+        <el-button type="primary" :loading="saving" @click="save" data-testid="token-save">创建</el-button>
       </template>
     </el-dialog>
 
@@ -46,23 +46,33 @@
 import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { createToken, deleteToken, listTokens } from '../api'
+import { fmtTime } from '../utils/enums'
 
 const rows = ref([])
 const name = ref('')
 const plain = ref('')
 const createDialog = ref(false)
 const showDialog = ref(false)
-const fmt = (t) => (t ? String(t).replace('T', ' ').slice(0, 16) : '-')
+const saving = ref(false)
 
 async function load() { rows.value = (await listTokens()).data }
 
 async function save() {
-  const resp = await createToken({ name: name.value || '未命名' })
-  plain.value = resp.data.token
-  createDialog.value = false
-  showDialog.value = true
-  name.value = ''
-  load()
+  if (!name.value.trim()) {
+    ElMessage.warning('请填写令牌名称')
+    return
+  }
+  saving.value = true
+  try {
+    const resp = await createToken({ name: name.value.trim() })
+    plain.value = resp.data.token
+    createDialog.value = false
+    showDialog.value = true
+    name.value = ''
+    load()
+  } finally {
+    saving.value = false
+  }
 }
 
 async function remove(row) {

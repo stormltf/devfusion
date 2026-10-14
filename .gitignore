@@ -17,3 +17,7 @@ e2e/test-results-ops/
 
 # 本地备份包
 *.tar.gz
+
+# 游离的 Playwright 产物（截图脚本可能从仓库根/frontend 目录运行）
+/test-results/
+/frontend/test-results/

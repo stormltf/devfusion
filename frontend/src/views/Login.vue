@@ -43,6 +43,8 @@ async function submit() {
     const resp = await login(form)
     localStorage.setItem('df_token', resp.data.token)
     router.push('/dashboard')
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.msg || '登录失败，请检查用户名和密码')
   } finally {
     loading.value = false
   }

@@ -5,7 +5,14 @@
       <el-button type="primary" @click="dialog = true" data-testid="iteration-create">新建迭代</el-button>
     </div>
 
-    <el-table :data="iterations" :data-testid="`iteration-table`">
+    <el-alert
+      v-if="loadError"
+      type="error" show-icon :closable="false" title="加载失败" style="margin-bottom: 12px"
+    >
+      <el-button size="small" type="primary" @click="load" data-testid="retry-load">重试</el-button>
+    </el-alert>
+
+    <el-table v-loading="loading" :data="iterations" :data-testid="`iteration-table`">
       <el-table-column prop="name" label="名称" min-width="180" />
       <el-table-column prop="goal" label="目标" min-width="200" show-overflow-tooltip />
       <el-table-column label="状态" width="100">
@@ -72,7 +79,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialog = false">取消</el-button>
-        <el-button type="primary" @click="save" data-testid="iteration-save">创建</el-button>
+        <el-button type="primary" :loading="saving" @click="save" data-testid="iteration-save">创建</el-button>
       </template>
     </el-dialog>
 
@@ -113,23 +120,34 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Right } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import { changeIterationStatus, createIteration, deleteIteration, getBurndown, getIteration, listIterations } from '../api'
+import { ITERATION_STATUS, fmtTime } from '../utils/enums'
 
 const props = defineProps({ projectId: String })
 const iterations = ref([])
+const loading = ref(false)
+const loadError = ref(false)
 const dialog = ref(false)
 const range = ref([])
 const form = reactive({ name: '', goal: '' })
+const saving = ref(false)
 const overviewVisible = ref(false)
 const overview = ref({})
 const burndownRef = ref(null)
 const burndownMetric = ref('ITEM')
 
-const iterLabel = (s) => ({ PLANNED: '规划中', IN_PROGRESS: '进行中', COMPLETED: '已完成', CANCELED: '已取消' }[s] || s)
-const iterType = (s) => ({ PLANNED: 'info', IN_PROGRESS: 'primary', COMPLETED: 'success', CANCELED: 'danger' }[s] || 'info')
+const iterLabel = (s) => ITERATION_STATUS[s]?.label || s
+const iterType = (s) => ITERATION_STATUS[s]?.type || 'info'
 
 async function load() {
-  const resp = await listIterations(props.projectId)
-  iterations.value = resp.data
+  loading.value = true
+  loadError.value = false
+  try {
+    iterations.value = (await listIterations(props.projectId)).data
+  } catch {
+    loadError.value = true
+  } finally {
+    loading.value = false
+  }
 }
 
 async function save() {
@@ -137,20 +155,27 @@ async function save() {
     ElMessage.warning('请填写迭代名称')
     return
   }
-  await createIteration(props.projectId, {
-    ...form,
-    startDate: range.value?.[0],
-    endDate: range.value?.[1],
-  })
-  ElMessage.success('创建成功')
-  dialog.value = false
-  form.name = ''
-  form.goal = ''
-  range.value = []
-  await load()
+  saving.value = true
+  try {
+    await createIteration(props.projectId, {
+      ...form,
+      startDate: range.value?.[0],
+      endDate: range.value?.[1],
+    })
+    ElMessage.success('创建成功')
+    dialog.value = false
+    form.name = ''
+    form.goal = ''
+    range.value = []
+    await load()
+  } finally {
+    saving.value = false
+  }
 }
 
 async function changeStatus(row, status) {
+  const verb = { IN_PROGRESS: '启动', COMPLETED: '完成', CANCELED: '取消' }[status]
+  await ElMessageBox.confirm(`确认${verb}迭代「${row.name}」？`, '提示', { type: 'warning' })
   await changeIterationStatus(row.id, status)
   ElMessage.success(`迭代已${iterLabel(status)}`)
   await load()
@@ -182,7 +207,7 @@ async function renderBurndown() {
     xAxis: { type: 'category', data: points.map((p) => p.date?.slice(5)) },
     yAxis: { type: 'value', minInterval: 1 },
     series: [
-      { name: '实际剩余', type: 'line', smooth: true, itemStyle: { color: '#0064ff' }, data: points.map((p) => p.remaining) },
+      { name: '实际剩余', type: 'line', smooth: true, itemStyle: { color: '#0064ff' }, data: points.map((p) => p.actual) },
       { name: '理想线', type: 'line', itemStyle: { color: '#c9cdd4' }, lineStyle: { type: 'dashed' }, data: points.map((p) => p.ideal) },
     ],
   })

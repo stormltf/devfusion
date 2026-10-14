@@ -60,7 +60,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, ArrowRight, Refresh } from '@element-plus/icons-vue'
 import { cancelRun, getRun, approveRunJob, rejectRunJob, getRunWorkItems } from '../api'
 
@@ -99,18 +99,21 @@ async function load() {
 }
 
 async function cancel() {
+  await ElMessageBox.confirm('确认取消本次构建？', '取消构建', { type: 'warning' })
   await cancelRun(runId.value)
   ElMessage.success('已发送取消请求')
   load()
 }
 
 async function approve(job) {
+  await ElMessageBox.confirm(`确认通过「${job.name}」人工审批？`, '审批确认', { type: 'warning' })
   await approveRunJob(runId.value, job.id)
   ElMessage.success('已审批通过')
   load()
 }
 
 async function reject(job) {
+  await ElMessageBox.confirm(`确认拒绝「${job.name}」？拒绝后流水线将终止。`, '拒绝确认', { type: 'warning' })
   await rejectRunJob(runId.value, job.id)
   ElMessage.success('已拒绝')
   load()

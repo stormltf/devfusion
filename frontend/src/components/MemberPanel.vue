@@ -5,8 +5,17 @@
       <el-button type="primary" @click="dialog = true" data-testid="member-add">添加成员</el-button>
     </div>
 
-    <el-table :data="members" data-testid="member-table">
-      <el-table-column prop="nickname" label="昵称" width="140" />
+    <el-alert
+      v-if="loadError"
+      type="error" show-icon :closable="false" title="加载失败" style="margin-bottom: 12px"
+    >
+      <el-button size="small" type="primary" @click="load" data-testid="retry-load">重试</el-button>
+    </el-alert>
+
+    <el-table :data="members" v-loading="loading" data-testid="member-table">
+      <el-table-column label="昵称" width="160">
+        <template #default="{ row }"><UserCell :name="row.nickname" /></template>
+      </el-table-column>
       <el-table-column prop="username" label="用户名" width="140" />
       <el-table-column label="项目角色" width="160">
         <template #default="{ row }">
@@ -48,7 +57,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialog = false">取消</el-button>
-        <el-button type="primary" @click="save" data-testid="member-save">添加</el-button>
+        <el-button type="primary" :loading="saving" @click="save" data-testid="member-save">添加</el-button>
       </template>
     </el-dialog>
   </div>
@@ -58,23 +67,34 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { addMember, listMembers, listSimpleUsers, removeMember, updateMember } from '../api'
+import UserCell from './common/UserCell.vue'
+import { fmtTime } from '../utils/enums'
 
 const props = defineProps({ projectId: String })
 const members = ref([])
 const allUsers = ref([])
 const dialog = ref(false)
 const selected = ref(null)
+const loading = ref(false)
+const saving = ref(false)
+const loadError = ref(false)
 
 const candidates = computed(() => {
   const ids = new Set(members.value.map((m) => m.userId))
   return allUsers.value.filter((u) => !ids.has(u.id))
 })
 
-const fmtTime = (t) => (t ? String(t).replace('T', ' ').slice(0, 16) : '-')
-
 async function load() {
-  members.value = (await listMembers(props.projectId)).data
-  allUsers.value = (await listSimpleUsers()).data
+  loading.value = true
+  loadError.value = false
+  try {
+    members.value = (await listMembers(props.projectId)).data
+    allUsers.value = (await listSimpleUsers()).data
+  } catch {
+    loadError.value = true
+  } finally {
+    loading.value = false
+  }
 }
 
 async function save() {
@@ -82,11 +102,16 @@ async function save() {
     ElMessage.warning('请选择用户')
     return
   }
-  await addMember(props.projectId, { userId: selected.value, roleCode: 'MEMBER' })
-  ElMessage.success('已添加')
-  dialog.value = false
-  selected.value = null
-  await load()
+  saving.value = true
+  try {
+    await addMember(props.projectId, { userId: selected.value, roleCode: 'MEMBER' })
+    ElMessage.success('已添加')
+    dialog.value = false
+    selected.value = null
+    await load()
+  } finally {
+    saving.value = false
+  }
 }
 
 async function changeRole(row, roleCode) {

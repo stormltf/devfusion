@@ -8,14 +8,14 @@
             <el-table-column label="类型" width="110">
               <template #default="{ row }">{{ row.kind === 'JOB' ? '流水线审批' : '部署单审批' }}</template>
             </el-table-column>
-            <el-table-column prop="title" label="事项" min-width="200" />
+            <el-table-column prop="title" label="事项" min-width="200" show-overflow-tooltip />
             <el-table-column label="操作" width="90">
               <template #default="{ row }">
                 <el-button size="small" type="primary" link @click="$router.push(row.link)">去处理</el-button>
               </template>
             </el-table-column>
           </el-table>
-          <el-empty v-if="!(wb.pendingApprovals || []).length" description="暂无待办审批" :image-size="60" />
+          <EmptyState v-if="!(wb.pendingApprovals || []).length" title="暂无待办审批" description="需要你处理的流水线/部署审批会出现在这里" />
         </div>
       </el-col>
       <el-col :span="12">
@@ -25,10 +25,10 @@
             <el-table-column prop="no" label="编号" width="130" />
             <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip />
             <el-table-column label="状态" width="100">
-              <template #default="{ row }"><el-tag size="small" type="info">{{ row.status }}</el-tag></template>
+              <template #default="{ row }"><StatusTag :code="row.status" domain="workItem" /></template>
             </el-table-column>
           </el-table>
-          <el-empty v-if="!(wb.myItems || []).length" description="暂无指派" :image-size="60" />
+          <EmptyState v-if="!(wb.myItems || []).length" title="暂无指派给我的工作项" />
         </div>
       </el-col>
     </el-row>
@@ -40,7 +40,7 @@
           <el-table :data="wb.myRuns || []" size="small" data-testid="wb-runs" @row-click="(r) => $router.push(`/runs/${r.id}`)">
             <el-table-column prop="version" label="版本" min-width="200" show-overflow-tooltip />
             <el-table-column label="状态" width="90">
-              <template #default="{ row }"><el-tag size="small" :type="runType(row.status)">{{ runLabel(row.status) }}</el-tag></template>
+              <template #default="{ row }"><StatusTag :code="row.status" domain="run" /></template>
             </el-table-column>
           </el-table>
         </div>
@@ -54,7 +54,7 @@
               <template #default="{ row }">{{ row.deployType === 'ROLLBACK' ? '回滚' : '部署' }}</template>
             </el-table-column>
             <el-table-column label="状态" width="90">
-              <template #default="{ row }"><el-tag size="small" :type="runType(row.status)">{{ row.status }}</el-tag></template>
+              <template #default="{ row }"><StatusTag :code="row.status" domain="deploy" /></template>
             </el-table-column>
           </el-table>
         </div>
@@ -66,10 +66,10 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { getWorkbench } from '../api'
+import StatusTag from '../components/common/StatusTag.vue'
+import EmptyState from '../components/common/EmptyState.vue'
 
 const wb = ref({})
-const runLabel = (s) => ({ PENDING: '排队', RUNNING: '进行中', SUCCESS: '成功', FAILED: '失败', CANCELED: '取消', PENDING_APPROVAL: '待审批', DEPLOYING: '部署中' }[s] || s)
-const runType = (s) => ({ SUCCESS: 'success', FAILED: 'danger', RUNNING: 'warning', DEPLOYING: 'warning' }[s] || 'info')
 
 onMounted(async () => {
   wb.value = (await getWorkbench()).data

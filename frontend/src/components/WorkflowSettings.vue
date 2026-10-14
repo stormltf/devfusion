@@ -3,6 +3,12 @@
     <h4 style="margin-bottom: 12px">工作流状态配置</h4>
     <el-alert type="info" :closable="false" style="margin-bottom: 12px"
       title="每个工作项类型拥有独立的状态列表；TODO 起始、DONE 结束列在看板与统计中归类。" />
+    <el-alert
+      v-if="loadError"
+      type="error" show-icon :closable="false" title="加载失败" style="margin-bottom: 12px"
+    >
+      <el-button size="small" type="primary" @click="load" data-testid="retry-load">重试</el-button>
+    </el-alert>
 
     <div style="display: flex; gap: 24px; flex-wrap: wrap">
       <div v-for="t in types" :key="t" style="flex: 1; min-width: 260px">
@@ -10,7 +16,7 @@
           <b>{{ { STORY: '需求', TASK: '任务', BUG: '缺陷' }[t] }}</b>
           <el-button size="small" :data-testid="`status-add-${t}`" @click="openCreate(t)">添加状态</el-button>
         </div>
-        <el-table :data="byType(t)" size="small" :data-testid="`status-table-${t}`">
+        <el-table v-loading="loading" :data="byType(t)" size="small" :data-testid="`status-table-${t}`">
           <el-table-column prop="name" label="状态" min-width="90" />
           <el-table-column label="归类" width="90">
             <template #default="{ row }">
@@ -47,7 +53,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialog = false">取消</el-button>
-        <el-button type="primary" @click="save" data-testid="status-save">添加</el-button>
+        <el-button type="primary" :loading="saving" @click="save" data-testid="status-save">添加</el-button>
       </template>
     </el-dialog>
   </div>
@@ -63,6 +69,9 @@ const statuses = ref([])
 const dialog = ref(false)
 const form = reactive({ type: 'STORY', name: '', category: 'TODO' })
 const types = ['STORY', 'TASK', 'BUG']
+const saving = ref(false)
+const loading = ref(false)
+const loadError = ref(false)
 
 const catLabel = (c) => ({ TODO: '待办', IN_PROGRESS: '进行中', DONE: '完成' }[c] || c)
 const catType = (c) => ({ TODO: 'info', IN_PROGRESS: 'warning', DONE: 'success' }[c] || 'info')
@@ -77,7 +86,15 @@ function openCreate(t) {
 }
 
 async function load() {
-  statuses.value = (await listStatuses(props.projectId)).data
+  loading.value = true
+  loadError.value = false
+  try {
+    statuses.value = (await listStatuses(props.projectId)).data
+  } catch {
+    loadError.value = true
+  } finally {
+    loading.value = false
+  }
 }
 
 async function save() {
@@ -85,10 +102,15 @@ async function save() {
     ElMessage.warning('请填写状态名称')
     return
   }
-  await createStatus(props.projectId, form)
-  ElMessage.success('已添加')
-  dialog.value = false
-  await load()
+  saving.value = true
+  try {
+    await createStatus(props.projectId, form)
+    ElMessage.success('已添加')
+    dialog.value = false
+    await load()
+  } finally {
+    saving.value = false
+  }
 }
 
 async function remove(row) {

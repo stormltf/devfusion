@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.devfusion.common.ApiException;
 import com.devfusion.common.CurrentUser;
 import com.devfusion.common.Result;
+import com.devfusion.common.UserNameResolver;
 import com.devfusion.user.User;
 import com.devfusion.user.mapper.UserMapper;
 import com.devfusion.workitem.WorkItem;
@@ -45,16 +46,18 @@ public class IterationController {
     private final WorkItemStatusMapper statusMapper;
     private final WorkItemActivityMapper activityMapper;
     private final UserMapper userMapper;
+    private final UserNameResolver userNameResolver;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public IterationController(IterationMapper iterationMapper, WorkItemMapper workItemMapper,
                                WorkItemStatusMapper statusMapper, WorkItemActivityMapper activityMapper,
-                               UserMapper userMapper) {
+                               UserMapper userMapper, UserNameResolver userNameResolver) {
         this.iterationMapper = iterationMapper;
         this.workItemMapper = workItemMapper;
         this.statusMapper = statusMapper;
         this.activityMapper = activityMapper;
         this.userMapper = userMapper;
+        this.userNameResolver = userNameResolver;
     }
 
     @Data
@@ -124,9 +127,8 @@ public class IterationController {
         m.put("status", it.getStatus());
         m.put("startDate", it.getStartDate());
         m.put("endDate", it.getEndDate());
-        User owner = it.getCreatedBy() != null ? userMapper.selectById(it.getCreatedBy()) : null;
         m.put("ownerId", it.getCreatedBy());
-        m.put("ownerName", owner != null ? owner.getNickname() : null);
+        m.put("ownerName", userNameResolver.name(it.getCreatedBy()));
 
         List<WorkItem> items = workItemMapper.selectList(Wrappers.<WorkItem>lambdaQuery()
                 .eq(WorkItem::getIterationId, id).orderByDesc(WorkItem::getUpdatedAt));

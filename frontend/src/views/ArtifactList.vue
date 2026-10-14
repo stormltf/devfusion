@@ -6,7 +6,7 @@
       </el-select>
       <span style="color: #999; font-size: 12px; align-self: center">构建成功后自动归档的制品（半成品库语义）</span>
     </div>
-    <el-table :data="rows" data-testid="artifact-table">
+    <el-table :data="rows" v-loading="loading" data-testid="artifact-table">
       <el-table-column prop="version" label="版本" min-width="220" />
       <el-table-column label="应用" width="150">
         <template #default="{ row }">{{ appName(row.applicationId) }}</template>
@@ -46,26 +46,34 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { listApplications, listArtifacts, promoteArtifact } from '../api'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { fmtTime } from '../utils/enums'
 
 const router = useRouter()
+const route = useRoute()
 const rows = ref([])
+const loading = ref(false)
 const apps = ref([])
-const appId = ref(null)
+const appId = ref(route.query.appId ? Number(route.query.appId) : null)
 const total = ref(0)
-const page = ref(1)
+const page = ref(Number(route.query.page) || 1)
 const size = 15
 
 const fmtSize = (b) => (b ? `${(b / 1024 / 1024).toFixed(1)} MB` : '-')
-const fmtTime = (t) => (t ? String(t).replace('T', ' ').slice(0, 16) : '-')
 const appName = (id) => apps.value.find((a) => a.id === id)?.name || id
 
 async function load() {
-  const resp = await listArtifacts({ applicationId: appId.value || undefined, page: page.value, size })
-  rows.value = resp.data.records
-  total.value = resp.data.total
+  loading.value = true
+  try {
+    const resp = await listArtifacts({ applicationId: appId.value || undefined, page: page.value, size })
+    rows.value = resp.data.records
+    total.value = resp.data.total
+  } finally {
+    loading.value = false
+  }
+  router.replace({ query: { ...(appId.value ? { appId: appId.value } : {}), ...(page.value > 1 ? { page: page.value } : {}) } })
 }
 
 function goDeploy(row) {
@@ -73,6 +81,7 @@ function goDeploy(row) {
 }
 
 async function promote(row) {
+  await ElMessageBox.confirm(`将制品「${row.version}」晋级为正式发布版本，确认？`, '晋级确认', { type: 'warning' })
   const resp = await promoteArtifact(row.id)
   ElMessage.success(`已晋级为成品 v${resp.data.releaseVersion}`)
   await load()

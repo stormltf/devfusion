@@ -3,10 +3,7 @@
     <div class="page-card" style="margin-bottom: 12px">
       <el-row :gutter="12">
         <el-col :span="6" v-for="s in statCards" :key="s.label">
-          <div style="text-align: center">
-            <div style="font-size: 24px; font-weight: 700" :style="{ color: s.color }">{{ s.value }}</div>
-            <div style="color: #999; font-size: 12px">{{ s.label }}</div>
-          </div>
+          <StatCard :label="s.label" :value="s.value" />
         </el-col>
       </el-row>
     </div>
@@ -23,19 +20,26 @@
         <el-button type="primary" style="margin-left: auto" @click="dialog = true" data-testid="case-create">新建用例</el-button>
       </div>
 
-      <el-table :data="rows" :data-testid="`case-table`">
+      <el-alert
+        v-if="loadError"
+        type="error" show-icon :closable="false" title="加载失败" style="margin-bottom: 12px"
+      >
+        <el-button size="small" type="primary" @click="load" data-testid="retry-load">重试</el-button>
+      </el-alert>
+
+      <el-table :data="rows" v-loading="loading" :data-testid="`case-table`">
         <el-table-column prop="caseNo" label="编号" width="130" />
-        <el-table-column prop="title" label="标题" min-width="200" />
+        <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip />
         <el-table-column prop="module" label="模块" width="110" />
         <el-table-column label="优先级" width="80">
-          <template #default="{ row }">{{ priorityLabel(row.priority) }}</template>
+          <template #default="{ row }"><PriorityTag :value="row.priority" /></template>
         </el-table-column>
         <el-table-column label="最近结果" width="100">
-          <template #default="{ row }">
-            <el-tag size="small" :type="resultType(row.latestResult)">{{ resultLabel(row.latestResult) }}</el-tag>
-          </template>
+          <template #default="{ row }"><StatusTag :code="row.latestResult" domain="testResult" /></template>
         </el-table-column>
-        <el-table-column prop="latestExecutorName" label="执行人" width="100" />
+        <el-table-column label="执行人" width="120">
+          <template #default="{ row }"><UserCell :name="row.latestExecutorName" /></template>
+        </el-table-column>
         <el-table-column label="操作" width="230" fixed="right">
           <template #default="{ row }">
             <el-button size="small" type="success" link :data-testid="`case-pass-${row.id}`" @click="exec(row, 'PASS')">通过</el-button>
@@ -72,7 +76,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialog = false">取消</el-button>
-        <el-button type="primary" @click="save" data-testid="case-save">保存</el-button>
+        <el-button type="primary" :loading="saving" @click="save" data-testid="case-save">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -82,39 +86,66 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { createTestCase, deleteTestCase, executeTestCase, getTestStats, listTestCases, updateTestCase } from '../api'
+import StatCard from './common/StatCard.vue'
+import PriorityTag from './common/PriorityTag.vue'
+import StatusTag from './common/StatusTag.vue'
+import UserCell from './common/UserCell.vue'
+import { statusLabel } from '../utils/enums'
+import { useRoute, useRouter } from 'vue-router'
 
 const props = defineProps({ projectId: String })
+const route = useRoute()
+const router = useRouter()
 const rows = ref([])
 const total = ref(0)
-const page = ref(1)
+const page = ref(Number(route.query.page) || 1)
 const size = 10
+const loading = ref(false)
+const saving = ref(false)
+const loadError = ref(false)
 const stats = ref({})
 const dialog = ref(false)
 const editId = ref(null)
-const filters = reactive({ keyword: '', result: '' })
+const filters = reactive({ keyword: route.query.keyword || '', result: route.query.result || '' })
 const form = reactive({ title: '', precondition: '', steps: '', expected: '', module: '', priority: 'MEDIUM' })
 
-const statCards = computed(() => [
-  { label: '用例总数', value: stats.value.total ?? 0, color: '#409eff' },
-  { label: '通过', value: stats.value.PASS ?? 0, color: '#67c23a' },
-  { label: '失败', value: stats.value.FAIL ?? 0, color: '#f56c6c' },
-  { label: '未执行', value: stats.value.UNEXECUTED ?? 0, color: '#909399' },
-])
-
-const resultLabel = (r) => ({ UNEXECUTED: '未执行', PASS: '通过', FAIL: '失败', BLOCKED: '阻塞' }[r] || r)
-const resultType = (r) => ({ PASS: 'success', FAIL: 'danger', BLOCKED: 'warning' }[r] || 'info')
-const priorityLabel = (p) => ({ URGENT: '紧急', HIGH: '高', MEDIUM: '中', LOW: '低' }[p] || p)
-
-async function load() {
-  const resp = await listTestCases(props.projectId, {
+function syncQuery() {
+  router.replace({ query: {
+    ...route.query,
     keyword: filters.keyword || undefined,
     result: filters.result || undefined,
-    page: page.value,
-    size,
-  })
-  rows.value = resp.data.records
-  total.value = resp.data.total
-  stats.value = (await getTestStats(props.projectId)).data
+    page: page.value > 1 ? page.value : undefined,
+  } }).catch(() => {})
+}
+
+const statCards = computed(() => [
+  { label: '用例总数', value: stats.value.total ?? 0 },
+  { label: '通过', value: stats.value.PASS ?? 0 },
+  { label: '失败', value: stats.value.FAIL ?? 0 },
+  { label: '未执行', value: stats.value.UNEXECUTED ?? 0 },
+])
+
+const resultLabel = (r) => statusLabel(r)
+
+async function load() {
+  loading.value = true
+  loadError.value = false
+  try {
+    const resp = await listTestCases(props.projectId, {
+      keyword: filters.keyword || undefined,
+      result: filters.result || undefined,
+      page: page.value,
+      size,
+    })
+    rows.value = resp.data.records
+    total.value = resp.data.total
+    stats.value = (await getTestStats(props.projectId)).data
+    syncQuery()
+  } catch {
+    loadError.value = true
+  } finally {
+    loading.value = false
+  }
 }
 
 async function save() {
@@ -122,16 +153,21 @@ async function save() {
     ElMessage.warning('请填写标题')
     return
   }
-  if (editId.value) {
-    await updateTestCase(editId.value, form)
-  } else {
-    await createTestCase(props.projectId, form)
+  saving.value = true
+  try {
+    if (editId.value) {
+      await updateTestCase(editId.value, form)
+    } else {
+      await createTestCase(props.projectId, form)
+    }
+    ElMessage.success('已保存')
+    dialog.value = false
+    editId.value = null
+    Object.assign(form, { title: '', precondition: '', steps: '', expected: '', module: '', priority: 'MEDIUM' })
+    await load()
+  } finally {
+    saving.value = false
   }
-  ElMessage.success('已保存')
-  dialog.value = false
-  editId.value = null
-  Object.assign(form, { title: '', precondition: '', steps: '', expected: '', module: '', priority: 'MEDIUM' })
-  await load()
 }
 
 function edit(row) {

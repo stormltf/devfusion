@@ -9,7 +9,7 @@
       <el-button type="primary" @click="openCreate" data-testid="deploy-create">新建部署单</el-button>
     </div>
 
-    <el-table :data="rows" data-testid="deploy-table">
+    <el-table :data="rows" v-loading="loading" data-testid="deploy-table">
       <el-table-column prop="id" label="单号" width="80" />
       <el-table-column label="应用" width="150">
         <template #default="{ row }">{{ row.applicationName }}</template>
@@ -114,9 +114,10 @@
 
 <script setup>
 import { computed, onMounted, onBeforeUnmount, reactive, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
+import { fmtTime } from '../utils/enums'
 import {
   cancelDeployment,
   createDeployment,
@@ -132,13 +133,15 @@ import {
 } from '../api'
 
 const route = useRoute()
+const router = useRouter()
 const rows = ref([])
+const loading = ref(false)
 const apps = ref([])
 const envs = ref([])
 const total = ref(0)
-const page = ref(1)
+const page = ref(Number(route.query.page) || 1)
 const size = 15
-const filters = reactive({ appId: null })
+const filters = reactive({ appId: route.query.appId ? Number(route.query.appId) : null })
 const createDialog = ref(false)
 const logDialog = ref(false)
 const currentLog = ref('')
@@ -153,12 +156,16 @@ const artifactsCache = ref([])
 
 const statusLabel = (s) => ({ PENDING: '排队中', DEPLOYING: '部署中', SUCCESS: '成功', FAILED: '失败', CANCELED: '已取消', PENDING_APPROVAL: '待审批', REJECTED: '已拒绝' }[s] || s)
 const statusType = (s) => ({ SUCCESS: 'success', FAILED: 'danger', DEPLOYING: 'warning', PENDING: 'info', PENDING_APPROVAL: 'warning' }[s] || 'info')
-const fmtTime = (t) => (t ? String(t).replace('T', ' ').slice(0, 16) : '-')
 
 async function load() {
-  const resp = await listDeployments({ applicationId: filters.appId || undefined, page: page.value, size })
-  rows.value = resp.data.records
-  total.value = resp.data.total
+  loading.value = true
+  try {
+    const resp = await listDeployments({ applicationId: filters.appId || undefined, page: page.value, size })
+    rows.value = resp.data.records
+    total.value = resp.data.total
+  } finally {
+    loading.value = false
+  }
   const busy = rows.value.some((r) => r.status === 'PENDING' || r.status === 'DEPLOYING')
   if (busy && !timer) {
     timer = setInterval(load, 2000)
@@ -166,6 +173,7 @@ async function load() {
     clearInterval(timer)
     timer = null
   }
+  router.replace({ query: { ...(filters.appId ? { appId: filters.appId } : {}), ...(page.value > 1 ? { page: page.value } : {}) } })
 }
 
 function openCreate() {
@@ -225,6 +233,7 @@ function stopLogPolling() {
 }
 
 async function cancel(row) {
+  await ElMessageBox.confirm(`确认取消「${row.applicationName}」的本次部署？`, '取消确认', { type: 'warning' })
   await cancelDeployment(row.id)
   ElMessage.success('已发送取消请求')
   await load()
@@ -242,12 +251,14 @@ async function rollback(row) {
 }
 
 async function approve(row) {
+  await ElMessageBox.confirm(`审批通过后将立即部署到「${row.environmentName}」，确认？`, '审批确认', { type: 'warning' })
   await approveDeployment(row.id)
   ElMessage.success('已审批通过，开始部署')
   await load()
 }
 
 async function reject(row) {
+  await ElMessageBox.confirm('拒绝后该部署单将终止，确认？', '拒绝确认', { type: 'warning' })
   await rejectDeployment(row.id)
   ElMessage.success('已拒绝，部署单终止')
   await load()

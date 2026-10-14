@@ -107,7 +107,7 @@
       </el-form>
       <template #footer>
         <el-button @click="createPipelineDialog = false">取消</el-button>
-        <el-button type="primary" @click="createPipeline" data-testid="pipeline-save">创建并编排</el-button>
+        <el-button type="primary" :loading="creating" @click="createPipeline" data-testid="pipeline-save">创建并编排</el-button>
       </template>
     </el-dialog>
   </div>
@@ -138,6 +138,7 @@ const runs = ref([])
 const artifacts = ref([])
 const deployments = ref([])
 const createPipelineDialog = ref(false)
+const creating = ref(false)
 const pipelineForm = reactive({ name: '', description: '', triggerType: 'MANUAL' })
 
 const runLabel = (s) => ({ PENDING: '排队中', RUNNING: '运行中', SUCCESS: '成功', FAILED: '失败', CANCELED: '已取消', DEPLOYING: '部署中' }[s] || s)
@@ -158,16 +159,20 @@ async function createPipeline() {
     ElMessage.warning('请填写名称')
     return
   }
-  // 后端要求流水线至少一个阶段：创建时给默认骨架，进编排器后再调整
-  const resp = await apiCreatePipeline(appId.value, {
-    ...pipelineForm,
-    stages: [{ name: '阶段 1', jobs: [{ name: 'Shell 任务', type: 'SHELL', config: '{"script":""}', continueOnFail: 0 }] }],
-  })
-  createPipelineDialog.value = false
-  pipelineForm.name = ''
-  pipelineForm.description = ''
-  await load()
-  router.push(`/applications/${appId.value}/pipelines/${resp.data.id}`)
+  creating.value = true
+  try {
+    const resp = await apiCreatePipeline(appId.value, {
+      ...pipelineForm,
+      stages: [{ name: '阶段 1', jobs: [{ name: 'Shell 任务', type: 'SHELL', config: '{"script":""}', continueOnFail: 0 }] }],
+    })
+    createPipelineDialog.value = false
+    pipelineForm.name = ''
+    pipelineForm.description = ''
+    await load()
+    router.push(`/applications/${appId.value}/pipelines/${resp.data.id}`)
+  } finally {
+    creating.value = false
+  }
 }
 
 async function run(row) {
