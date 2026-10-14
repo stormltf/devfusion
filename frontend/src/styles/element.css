@@ -1,0 +1,93 @@
+/* ============================================================
+ * Element Plus 主题覆盖 + 全站统一组件规范
+ * 依赖 tokens.css，在 element-plus/dist/index.css 之后引入。
+ * ============================================================ */
+
+/* ---- Element Plus 主色重映射到 ONES 蓝 ---- */
+:root {
+  --el-color-primary: var(--df-primary);
+  --el-color-primary-light-3: #4d8bff;
+  --el-color-primary-light-5: #80adff;
+  --el-color-primary-light-7: #b3cfff;
+  --el-color-primary-light-8: #cddfff;
+  --el-color-primary-light-9: var(--df-primary-light);
+  --el-color-primary-dark-2: var(--df-primary-active);
+
+  --el-color-success: var(--df-success);
+  --el-color-success-light-9: #e8f7ec;
+  --el-color-warning: var(--df-warning);
+  --el-color-warning-light-9: #fef3e8;
+  --el-color-danger: var(--df-danger);
+  --el-color-danger-light-9: #feeceb;
+  --el-color-info: var(--df-info);
+  --el-color-info-light-9: #f2f3f5;
+
+  --el-border-color: var(--df-border);
+  --el-border-color-light: var(--df-border-light);
+  --el-border-color-lighter: var(--df-border-light);
+  --el-text-color-primary: var(--df-text);
+  --el-text-color-regular: var(--df-text-2);
+  --el-text-color-secondary: var(--df-text-3);
+  --el-fill-color-light: #f7f8fa;
+  --el-border-radius-base: 6px;
+  --el-font-size-base: var(--df-font);
+}
+
+/* ---- 全局基础 ---- */
+html, body, #app { height: 100%; }
+body {
+  font-family: 'Inter', 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: var(--df-font);
+  color: var(--df-text);
+  background: var(--df-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- 卡片内容区 ---- */
+.page-card {
+  background: var(--df-surface);
+  border: 1px solid var(--df-border-light);
+  border-radius: var(--df-radius);
+  padding: 16px;
+}
+
+/* ---- 表格：紧凑行高、细线表头 ---- */
+.el-table {
+  --el-table-header-bg-color: #fafbfc;
+  --el-table-row-hover-bg-color: #f5f9ff;
+  font-size: var(--df-font);
+}
+.el-table th.el-table__cell {
+  background: var(--el-table-header-bg-color);
+  color: var(--df-text-3);
+  font-weight: 500;
+  font-size: var(--df-font-sm);
+}
+.el-table .cell { line-height: 1.5; }
+
+/* ---- 按钮：统一尺寸、主色实心 ---- */
+.el-button { font-weight: 500; }
+.el-button--small { padding: 5px 11px; }
+
+/* ---- 标签：统一浅色描边语义 ---- */
+.el-tag {
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+/* ---- 对话框 / 抽屉：圆角 + 细边框 ---- */
+.el-dialog { border-radius: 10px; }
+.el-dialog__header { margin-right: 0; padding-bottom: 14px; border-bottom: 1px solid var(--df-border-light); }
+.el-drawer__header { margin-bottom: 0; padding: 16px 20px; border-bottom: 1px solid var(--df-border-light); }
+
+/* ---- 表单 ---- */
+.el-form-item__label { color: var(--df-text-2); }
+
+/* ---- 分页 ---- */
+.el-pagination .el-pager li.is-active { background: var(--df-primary-light); color: var(--df-primary); }
+
+/* ---- 滚动条 ---- */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #d4d7dd; border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: #b8bcc4; }
+::-webkit-scrollbar-track { background: transparent; }

@@ -1,0 +1,51 @@
+/* ============================================================
+ * DevFusion 设计令牌（Design Tokens）
+ * 视觉基准：ONES / 简单云 ezOne 风格企业级 SaaS
+ * 主色 ONES 蓝，浅色导航，紧凑信息密度。
+ * 后续新页面请只引用这里的变量，不要散落硬编码色值。
+ * ============================================================ */
+:root {
+  /* 品牌主色 */
+  --df-primary: #0064ff;
+  --df-primary-hover: #3385ff;
+  --df-primary-active: #0052cc;
+  --df-primary-light: #e8f0ff; /* 选中项浅蓝底 */
+
+  /* 语义色（状态 / 优先级统一） */
+  --df-success: #00b42a;
+  --df-warning: #ff7d00;
+  --df-danger: #f53f3f;
+  --df-info: #86909c;
+
+  /* 文本 */
+  --df-text: #1d2129;
+  --df-text-2: #4e5969;
+  --df-text-3: #86909c;
+  --df-text-inverse: #ffffff;
+
+  /* 背景与容器 */
+  --df-bg: #f3f5f9; /* 内容区底色 */
+  --df-surface: #ffffff; /* 卡片 / 容器 */
+  --df-sidebar-bg: #ffffff;
+  --df-sidebar-hover: #f2f3f5;
+  --df-sidebar-active: #e8f0ff;
+  --df-header-bg: #ffffff;
+
+  /* 边框与分割线（细线） */
+  --df-border: #e5e6eb;
+  --df-border-light: #f0f1f3;
+
+  /* 圆角 / 间距 */
+  --df-radius: 8px;
+  --df-radius-sm: 6px;
+  --df-gap: 16px;
+
+  /* 尺寸 */
+  --df-sidebar-width: 220px;
+  --df-header-height: 52px;
+
+  /* 字号（企业级密度：正文 13px） */
+  --df-font: 13px;
+  --df-font-sm: 12px;
+  --df-font-lg: 14px;
+}

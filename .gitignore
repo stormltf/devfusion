@@ -1,0 +1,19 @@
+# backend
+backend/target/
+
+# frontend
+frontend/node_modules/
+frontend/dist/
+
+# e2e
+e2e/node_modules/
+e2e/test-results/
+e2e/playwright-report/
+
+# misc
+.DS_Store
+*.log
+e2e/test-results-ops/
+
+# 本地备份包
+*.tar.gz

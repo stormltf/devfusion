@@ -1,0 +1,41 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: devfusion
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/devfusion?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: devfusion
+    password: devfusion123
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      database: 3
+  servlet:
+    multipart:
+      max-file-size: 10MB
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    banner: false
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+devfusion:
+  jwt:
+    secret: devfusion-local-secret-key-change-in-prod-0123456789abcdef
+    ttl-hours: 24
+  cors:
+    allowed-origin: http://localhost:5173
+
+logging:
+  level:
+    com.devfusion: info
